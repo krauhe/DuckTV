@@ -4,6 +4,23 @@ import * as THREE from 'three';
 import { createDuck } from '../src/duck-model.ts';
 import type { DuckKind, DuckPose } from '../src/types.ts';
 
+test('acceleration bends the body and neck gradually and settles after the force ends',()=>{
+ const model=createDuck('buff'),body=model.group.getObjectByName('duck-torso')!;
+ const head=model.group.getObjectByName('duck-head')!;
+ const pose:DuckPose={state:'guard',speed:0,time:0,look:0,peck:0,upright:1,headTilt:0,displayDip:0};
+ model.animate(pose);const baseline=body.rotation.x;
+ model.animate({...pose,time:1/60,accelerationForward:1.5});
+ const first=body.rotation.x-baseline;
+ assert.ok(first>0&&first<.03,'elastic response starts gradually');
+ for(let i=2;i<=60;i++)model.animate({...pose,time:i/60,accelerationForward:1.5});
+ assert.ok(body.rotation.x-baseline>.06);
+ for(let i=61;i<=300;i++)model.animate({...pose,time:i/60});
+ assert.ok(Math.abs(body.rotation.x-baseline)<.0001);
+ model.group.updateMatrixWorld(true);
+ const scale=head.getWorldScale(new THREE.Vector3());
+ assert.ok(Math.abs(scale.x-.8)<.0001&&Math.abs(scale.y-.8)<.0001);
+});
+
 test('sleep folds the feet and tucks the head back, then releases the pose when walking',()=>{
  const model=createDuck('pied');
  const head=model.group.getObjectByName('duck-head')!;

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { DuckKind, DuckPose } from './types';
+import { Spring } from './dynamics';
 
 type Palette = {
   body: string; breast: string; neck: string; head: string; wing: string;
@@ -392,6 +393,9 @@ export function createDuck(kind: DuckKind): {
   let displayBlend = 0;
   let preenBlend = 0;
   let sleepBlend = 0;
+  const bodyPitch=new Spring(0,1.4,100,20),bodyRoll=new Spring(0,1.4,100,20);
+  const neckForward=new Spring(0,.25,35,5),neckSide=new Spring(0,.25,35,5);
+  const bodyExtension=new Spring(1,1,90,18);
   // Solve the neck from its body attachment to the intended steady head pose.
   // Reused scratch objects avoid allocations on every animation frame.
   const steadyHead = new THREE.Vector3();
@@ -406,6 +410,10 @@ export function createDuck(kind: DuckKind): {
     const { state, time } = pose;
     const dt = Math.max(0, Math.min(.05, time - previousTime));
     previousTime = time;
+    const forward=THREE.MathUtils.clamp(pose.accelerationForward??0,-3,3);
+    const lateral=THREE.MathUtils.clamp(pose.accelerationSide??0,-3,3);
+    const pitch=bodyPitch.step(forward*.06,dt),roll=bodyRoll.step(-lateral*.05,dt);
+    const headLag=neckForward.step(-forward*.014,dt),headSide=neckSide.step(-lateral*.014,dt);
     // Smooth the posture and expression signals independently of the walking gait.
     const postureResponse = 1 - Math.exp(-dt * 6);
     preenBlend += ((state==='preen'?1:0)-preenBlend)*postureResponse;
@@ -416,9 +424,7 @@ export function createDuck(kind: DuckKind): {
       tiltBlend) * postureResponse;
     displayBlend += (THREE.MathUtils.clamp(pose.displayDip, 0, 1) -
       displayBlend) * postureResponse;
-    const moving = pose.speed > .005 && (state === 'wander' ||
-      state === 'approach' || state === 'guard' || state === 'enter' ||
-      state === 'exit');
+    const moving = pose.speed > .005 && state!=='swim' && state!=='sleep' && state!=='preen';
     const swim = state === 'swim';
     const peck = Math.max(0, pose.peck);
     const peckAmount = Math.min(1, peck);
@@ -431,7 +437,7 @@ export function createDuck(kind: DuckKind): {
     const display = displayBlend * (1 - swimBlend) * (1 - peckAmount);
     // Raised runner posture: narrow breast, tucked wings and a longer silhouette.
     // A low or floating duck spreads into a fuller, longer horizontal body.
-    const extension = uprightBlend * (1 - swimBlend) * (1 - peckAmount * .6);
+    const extension = THREE.MathUtils.clamp(bodyExtension.step(uprightBlend * (1 - swimBlend) * (1 - peckAmount * .6),dt),0,1);
     bodyShape.scale.set(1 - extension * .28, .94 + extension * .27, 1.06 - extension * .32);
     neckPivot.position.set(0, .302 * bodyShape.scale.y, .143 * bodyShape.scale.z);
     torso.position.y = .604 + extension * .035 - swimBlend * .38 - peckAmount * .17 -
@@ -461,16 +467,17 @@ export function createDuck(kind: DuckKind): {
     head.rotation.z=THREE.MathUtils.lerp(head.rotation.z,side*.2,comfortBlend);
     eyes.forEach(eye=>eye.scale.y=1-sleepBlend*.94);
     eyeGlints.forEach(glint=>glint.visible=sleepBlend<.5);
-    if (moving) {
+    if (moving || Math.abs(pitch)+Math.abs(roll)+Math.abs(headLag)+Math.abs(headSide)>.00001) {
       // Capture the intentional posture/look/tilt before adding the footfall sway.
       torso.updateMatrix();
       neckPivot.updateMatrix();
       steadyHead.copy(head.position).applyMatrix4(neckPivot.matrix).applyMatrix4(torso.matrix);
+      steadyHead.x+=headSide;steadyHead.z+=headLag;
       steadyHeadRotation.copy(torso.quaternion).multiply(neckPivot.quaternion).multiply(head.quaternion);
 
       torso.position.y += Math.sin(phase * 2) * .017 * stride;
-      torso.rotation.x += Math.sin(phase) * .028 * stride;
-      torso.rotation.z = Math.sin(phase) * .024 * stride;
+      torso.rotation.x += Math.sin(phase) * .028 * stride + pitch;
+      torso.rotation.z = Math.sin(phase) * .024 * stride + roll;
       torso.updateMatrix();
       inverseTorso.copy(torso.matrix).invert();
       desiredNeck.copy(steadyHead).applyMatrix4(inverseTorso).sub(neckPivot.position);

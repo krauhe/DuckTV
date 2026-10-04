@@ -100,7 +100,7 @@ function frame(now:number){
  sim.update(dt);environment.update(sim.time,dt);
  for(let i=0;i<sim.ducks.length;i++){
   const d=sim.ducks[i],m=duckModels[i];m.group.position.set(d.x,d.y,d.z);m.group.rotation.y=d.heading;
-  m.animate({speed:d.speed,time:sim.time+i*1.71,state:d.state,look:d.look,peck:d.peck,upright:d.upright,headTilt:d.headTilt,displayDip:d.displayDip});
+  m.animate({speed:d.speed,time:sim.time+i*1.71,state:d.state,look:d.look,peck:d.peck,upright:d.upright,headTilt:d.headTilt,displayDip:d.displayDip,accelerationForward:d.ax*Math.sin(d.heading)+d.az*Math.cos(d.heading),accelerationSide:d.ax*Math.cos(d.heading)-d.az*Math.sin(d.heading)});
   if(d.state==='swim'&&Math.random()<dt*3)environment.ripple(d.x,d.z,.25);
  }
  const liveIds=new Set<string>();

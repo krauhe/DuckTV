@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { BEHAVIOR, Simulation } from '../src/simulation.ts';
 import { GARDEN, POND } from '../src/types.ts';
+import { DYNAMICS } from '../src/dynamics';
 
 function seeded(seed = 42): () => number {
   let value = seed >>> 0;
@@ -176,6 +177,7 @@ test('courtship dips repeat at three seconds; a female can reply or decline; foo
     const partner = sim.ducks.find(d => d.id === sim.courtship!.partnerId)!;
     const starts: number[] = [];
     let previous = 0, replySeen = false;
+    let previousSpeed=sim.ducks[0].speed;
     for (let i = 0; i < 390; i++) {
       sim.update(.025);
       const dip = sim.ducks[0].displayDip;
@@ -186,7 +188,8 @@ test('courtship dips repeat at three seconds; a female can reply or decline; foo
         assert.ok(sim.time - sim.courtship!.startedAt >= BEHAVIOR.displayReplyDelay);
       }
       assert.equal(sim.ducks[0].peck, 0, 'courtship never uses the eating animation');
-      assert.equal(sim.ducks[0].speed, 0);
+      assert.ok(sim.ducks[0].speed<=previousSpeed+1e-9,'drake brakes smoothly into courtship');
+      previousSpeed=sim.ducks[0].speed;
     }
     assert.ok(starts.length >= 3);
     for (let i = 1; i < starts.length; i++) assert.ok(Math.abs(starts[i] - starts[i - 1] - 3) < .03);
@@ -249,10 +252,12 @@ test('turns stay bounded through wandering, feeding, courtship and pond crossing
     for (let i = 0; i < 4400; i++) {
       if (i === 60) sim.castFood(-1, 1.5);
       const headings = sim.ducks.map(duck => duck.heading);
+      const angularSpeeds=sim.ducks.map(duck=>duck.angularVelocity);
       sim.update(.05);
       sim.ducks.forEach((duck, j) => {
         const delta = Math.atan2(Math.sin(duck.heading - headings[j]), Math.cos(duck.heading - headings[j]));
         assert.ok(Math.abs(delta) <= BEHAVIOR.turnSpeed * .05 + 1e-9);
+        assert.ok(Math.abs(duck.angularVelocity-angularSpeeds[j])<=DYNAMICS.turnAcceleration*.05+1e-9);
         states.add(duck.state);
       });
     }

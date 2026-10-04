@@ -1,4 +1,5 @@
 import { GARDEN, POND, type DuckKind, type DuckState, type Vec2 } from './types';
+import { drive, DYNAMICS } from './dynamics';
 
 /** Tunable scene timings and distances, in seconds and world units. */
 export const BEHAVIOR = {
@@ -44,7 +45,7 @@ export const BEHAVIOR = {
   pondVisitMax: 48,
   swimMin: 6,
   swimMax: 10,
-  rimCrossSeconds: 1.15,
+  rimCrossSeconds: 1.8,
   rimClearance: 0.16,
   waterEdgeMargin: 0.51,
   guardScanRate: 1.27,
@@ -69,6 +70,10 @@ export const BEHAVIOR = {
 } as const;
 
 export interface Duck {
+  mass:number;
+  inertia:number;
+  vx:number;vz:number;ax:number;az:number;
+  angularVelocity:number;
   id: string;
   kind: DuckKind;
   x: number;
@@ -108,6 +113,9 @@ export interface Food {
 }
 
 interface Intent {
+  moved:boolean;
+  crossingFrom?: Vec2;
+  crossingY?: number;
   comfortAt: number;
   comfortUntil: number;
   comfortCount: number;
@@ -185,11 +193,13 @@ export class Simulation {
     this.ducks = kinds.map((kind, index) => {
       const start = starts[index];
       const duck: Duck = {
+        mass:[2,1.7,1.85,1.8][index],inertia:[2,1.7,1.85,1.8][index]*.12,vx:0,vz:0,ax:0,az:0,angularVelocity:0,
         id: kind, kind, x: start.x, z: start.z, y: 0,
         heading: start.heading, state: kind === 'drake' ? 'guard' : 'wander',
         speed: 0, look: 0, peck: 0, upright: 1, headTilt: 0, displayDip: 0,
       };
       this.intents.set(duck.id, {
+        moved:false,
         comfortAt: BEHAVIOR.comfortFirstAt + index * 9,
         comfortUntil: 0, comfortCount: 0,
         headingTarget: start.heading, guardMoving: false, idleFor: 0,
@@ -254,27 +264,32 @@ export class Simulation {
     this.updateDisplay();
 
     for (const duck of this.ducks) {
-      duck.speed = 0;
       const intent = this.intents.get(duck.id)!;
+      intent.moved=false;
       if (this.courtship && (duck.kind === 'drake' || duck.id === this.courtship.partnerId)) {
         const partner = this.ducks.find(other => duck.kind === 'drake' ? other.id === this.courtship!.partnerId : other.kind === 'drake')!;
         duck.state = duck.kind === 'drake' ? 'guard' : 'rest';
         duck.peck = 0;
         duck.look = 0;
         this.face(duck, partner);
+        this.brake(duck,intent,dt);
         this.updateExpression(duck, dt);
         continue;
       }
-      if (this.comfort(duck, intent)) { this.updateExpression(duck, dt); continue; }
+      if (this.comfort(duck, intent)) { this.brake(duck,intent,dt);this.updateExpression(duck, dt); continue; }
       if (duck.kind === 'drake') this.guard(duck, intent, dt);
       else this.female(duck, intent, dt);
+      if(!intent.moved)this.brake(duck,intent,dt);
       this.updateExpression(duck, dt);
     }
     this.separateDucks();
     for (const duck of this.ducks) {
       const intent = this.intents.get(duck.id)!;
       const delta = Math.atan2(Math.sin(intent.headingTarget - duck.heading), Math.cos(intent.headingTarget - duck.heading));
-      duck.heading += clamp(delta, -BEHAVIOR.turnSpeed * dt, BEHAVIOR.turnSpeed * dt);
+      const wantedTurn=clamp(delta*4,-BEHAVIOR.turnSpeed,BEHAVIOR.turnSpeed);
+      const torque=clamp((wantedTurn-duck.angularVelocity)*DYNAMICS.turnGain,-DYNAMICS.turnTorque,DYNAMICS.turnTorque);
+      duck.angularVelocity+=clamp(torque/duck.inertia,-DYNAMICS.turnAcceleration,DYNAMICS.turnAcceleration)*dt;
+      duck.heading += duck.angularVelocity*dt;
       duck.heading = Math.atan2(Math.sin(duck.heading), Math.cos(duck.heading));
     }
   }
@@ -303,8 +318,10 @@ export class Simulation {
     }
     if(foodAvailable||this.courtship||this.time<intent.comfortAt||
       !['wander','rest','guard'].includes(duck.state))return false;
+    if(distance(duck,shore)<.95)return false; // Leave the shared bath landing clear.
     // Stagger individual bouts and leave at least two ducks awake and active.
     if(this.ducks.filter(other=>other.state==='sleep'||other.state==='preen').length>=2)return false;
+    if(duck.speed>.0005)return true; // Brake before settling into a stationary pose.
     duck.state=intent.comfortCount++%2===0?'preen':'sleep';
     intent.comfortUntil=this.time+(duck.state==='preen'?BEHAVIOR.preenSeconds:BEHAVIOR.sleepSeconds);
     duck.peck=0;duck.look=0;
@@ -491,19 +508,15 @@ export class Simulation {
       }
       this.moveLand(duck, shore, BEHAVIOR.walkSpeed * 0.8, dt);
       // The obstacle-avoidance margin can stop a duck just short of this point.
-      if (distance(duck, shore) < 0.18) {
+      if (distance(duck, shore) < 0.05 && duck.speed < .14) {
         intent.phase = 'cross';
         intent.crossTime = 0;
+        intent.crossingFrom={x:duck.x,z:duck.z};intent.crossingY=duck.y;
       }
       return;
     }
-    intent.crossTime = Math.min(BEHAVIOR.rimCrossSeconds, intent.crossTime + dt);
-    const t = intent.crossTime / BEHAVIOR.rimCrossSeconds;
-    duck.x = mix(shore.x, waterGate.x, t);
-    duck.z = POND.z;
+    const t=this.crossPond(duck,intent,waterGate,POND.waterY,dt);
     intent.headingTarget = Math.PI / 2;
-    duck.speed = (waterGate.x - shore.x) / BEHAVIOR.rimCrossSeconds;
-    duck.y = t < 0.5 ? mix(0, POND.rimY + BEHAVIOR.rimClearance, t * 2) : mix(POND.rimY + BEHAVIOR.rimClearance, POND.waterY, (t - 0.5) * 2);
     if (t >= 1) {
       duck.state = 'swim';
       duck.y = POND.waterY;
@@ -515,31 +528,52 @@ export class Simulation {
   private swim(duck: Duck, intent: Intent, dt: number): void {
     duck.y = POND.waterY + BEHAVIOR.swimBobHeight * Math.sin(this.time * BEHAVIOR.swimBobRate);
     duck.look = BEHAVIOR.swimLookRange * Math.sin(this.time * BEHAVIOR.swimLookRate);
-    if (this.time >= intent.swimUntil) intent.target = waterGate;
+    const wantsExit=this.time>=intent.swimUntil;
+    const nextToExit=this.ducks.find(other=>other.state==='swim'&&this.time>=this.intents.get(other.id)!.swimUntil);
+    const gateTurn=wantsExit&&nextToExit?.id===duck.id&&!this.ducks.some(other=>other.state==='exit');
+    if(wantsExit){
+      const index=this.ducks.indexOf(duck)-1;
+      // Wait deeper in the bath, leaving room for the first swimmer to reach the gate.
+      intent.target=gateTurn?waterGate:{x:POND.x+.35,z:POND.z+(index-1)*.65};
+    }
     if (distance(duck, intent.target) < 0.12) {
-      if (this.time >= intent.swimUntil) {
-        if (this.gateFree(duck)) {
+      if (wantsExit) {
+        if (gateTurn&&this.gateFree(duck)) {
           duck.state = 'exit';
           intent.crossTime = 0;
+          intent.crossingFrom={x:duck.x,z:duck.z};intent.crossingY=duck.y;
         }
       } else intent.target = this.swimTarget();
     } else this.move(duck, intent.target, BEHAVIOR.swimSpeed, dt);
   }
 
   private exitPond(duck: Duck, intent: Intent, dt: number): void {
-    intent.crossTime = Math.min(BEHAVIOR.rimCrossSeconds, intent.crossTime + dt);
-    const t = intent.crossTime / BEHAVIOR.rimCrossSeconds;
-    duck.x = mix(waterGate.x, shore.x, t);
-    duck.z = POND.z;
+    const t=this.crossPond(duck,intent,shore,0,dt);
     intent.headingTarget = -Math.PI / 2;
-    duck.speed = (waterGate.x - shore.x) / BEHAVIOR.rimCrossSeconds;
-    duck.y = t < 0.5 ? mix(POND.waterY, POND.rimY + BEHAVIOR.rimClearance, t * 2) : mix(POND.rimY + BEHAVIOR.rimClearance, 0, (t - 0.5) * 2);
     if (t >= 1) {
       duck.y = 0;
       duck.state = 'wander';
       intent.queueAt = Infinity;
-      intent.timer = 0;
+      intent.target=this.safeLand({x:shore.x-.9,z:shore.z+.8});
+      intent.timer=3;
     }
+  }
+
+  /** The step over the rim remains a guided arc, with smooth endpoints. */
+  private crossPond(duck:Duck,intent:Intent,to:Vec2,endY:number,dt:number):number{
+    intent.moved=true;
+    intent.crossingFrom??={x:duck.x,z:duck.z};intent.crossingY??=duck.y;
+    intent.crossTime=Math.min(BEHAVIOR.rimCrossSeconds,intent.crossTime+dt);
+    const t=intent.crossTime/BEHAVIOR.rimCrossSeconds;
+    const blend=t*t*t*(10+t*(-15+6*t));
+    const rate=30*t*t*(1-t)*(1-t)/BEHAVIOR.rimCrossSeconds;
+    const from=intent.crossingFrom;
+    const vx=(to.x-from.x)*rate,vz=(to.z-from.z)*rate;
+    duck.ax=(vx-duck.vx)/dt;duck.az=(vz-duck.vz)/dt;
+    duck.vx=vx;duck.vz=vz;duck.speed=Math.hypot(vx,vz);
+    duck.x=mix(from.x,to.x,blend);duck.z=mix(from.z,to.z,blend);
+    duck.y=mix(intent.crossingY,endY,blend)+(POND.rimY+BEHAVIOR.rimClearance)*Math.sin(Math.PI*t)**2;
+    return t;
   }
 
   private gateFree(duck: Duck): boolean {
@@ -560,22 +594,41 @@ export class Simulation {
     const safeTarget = this.safeLand(target);
     const waypoint = this.landWaypoint(duck, safeTarget, this.intents.get(duck.id)!);
     this.move(duck, waypoint, speed, dt);
-    const corrected = this.safeLand(duck);
-    duck.x = corrected.x;
-    duck.z = corrected.z;
-    duck.y = 0;
+    this.constrainLandMotion(duck);
+  }
+
+  private constrainLandMotion(duck:Duck):void{
+    const corrected=this.safeLand(duck);
+    const dx=corrected.x-duck.x,dz=corrected.z-duck.z,length=Math.hypot(dx,dz);
+    if(length>1e-9){
+      const inward=(duck.vx*dx+duck.vz*dz)/length;
+      if(inward<0){duck.vx-=inward*dx/length;duck.vz-=inward*dz/length}
+    }
+    duck.x=corrected.x;duck.z=corrected.z;duck.y=0;
+    duck.speed=Math.hypot(duck.vx,duck.vz);
+  }
+
+  private brake(duck:Duck,intent:Intent,dt:number):void{
+    drive(duck,0,0,dt);
+    duck.x+=duck.vx*dt;duck.z+=duck.vz*dt;
+    if(Math.hypot(duck.vx,duck.vz)<.0005){duck.vx=0;duck.vz=0}
+    duck.speed=Math.hypot(duck.vx,duck.vz);
+    if(duck.state!=='swim'&&duck.state!=='exit'&&!(duck.state==='enter'&&intent.phase==='cross'))this.constrainLandMotion(duck);
   }
 
   private move(duck: Duck, target: Vec2, speed: number, dt: number): void {
     const dx = target.x - duck.x;
     const dz = target.z - duck.z;
     const dist = Math.hypot(dx, dz);
-    if (dist < 0.025) return;
-    const movement = Math.min(dist, speed * dt);
-    this.intents.get(duck.id)!.headingTarget = Math.atan2(dx, dz);
-    duck.x += dx / dist * movement;
-    duck.z += dz / dist * movement;
-    duck.speed = movement / dt;
+    const intent=this.intents.get(duck.id)!;
+    intent.moved=true;
+    if(dist>.025)intent.headingTarget=Math.atan2(dx,dz);
+    const angle=Math.atan2(Math.sin(intent.headingTarget-duck.heading),Math.cos(intent.headingTarget-duck.heading));
+    const alignment=duck.state==='swim'?1:Math.max(.2,Math.cos(angle));
+    const wantedSpeed=Math.min(speed*alignment,dist*DYNAMICS.arrivalGain);
+    drive(duck,dist>1e-6?dx/dist*wantedSpeed:0,dist>1e-6?dz/dist*wantedSpeed:0,dt);
+    duck.x+=duck.vx*dt;duck.z+=duck.vz*dt;
+    duck.speed=Math.hypot(duck.vx,duck.vz);
   }
 
   private landWaypoint(from: Vec2, target: Vec2, intent: Intent): Vec2 {

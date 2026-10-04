@@ -24,6 +24,7 @@ pnpm preview
 ## Projektets dele
 
 - `src/simulation.ts`: adfærd og indstillinger i `BEHAVIOR`; kan testes uden grafik.
+- `src/dynamics.ts`: begrænsede drivkræfter og dæmpede masse-fjedre.
 - `src/duck-model.ts`: fire foreløbige, proceduralt byggede 3D-modeller og bevægelser.
 - `src/environment.ts`: have, muslingebassin, vand, skyer og vejr.
 - `src/weather.ts`: Open-Meteo for et punkt i Gistrup, lokal cache og fejlbehandling.
@@ -35,6 +36,16 @@ pnpm preview
 Dette er en første kørbar prototype. Modellerne er fortolkninger af referencerne, ikke færdige Blender-modeller eller præcise rekonstruktioner. Animationerne er kodestyrede. Mere varieret fjerpudsning, realistisk fodkontakt, avanceret badning/sprøjt og en egentlig Windows-pauseskærm er senere trin. Vejret kan vælges manuelt eller følge Gistrup; realtidsvalget anvender vejrmodeldata, ikke en måler i haven. Aktuel dag/nat understøttes, mens præcis solbane og sne ikke er implementeret.
 
 Hver besøgende kører sin egen simulation. Der er ingen fælles server eller login. Lyden er endnu ikke implementeret.
+
+### Masse, træghed og elasticitet
+
+Gang og svømning styres nu gennem ønsket hastighed og en begrænset drivkraft: kraften ændrer hastigheden efter F = m·a. Hver and har en foreløbig modelmasse, og drejninger har vinkelhastighed, inertimoment og begrænset drejningsmoment. Start, retningsskift og stop sker derfor gradvist; anden bremser også ved pauser og kurmageri. Værdierne er indstillinger i sceneenheder, ikke målte vægte eller biologiske egenskaber.
+
+Dæmpede masse-fjedre giver kroppen hældning ved acceleration og sving samt elastisk overgang mellem slank og lav kropsform. Halsen får en lille inertireaktion, samtidig med at hovedstabiliseringen kompenserer for skridtenes vuggen. Stivhed og dæmpning holder bevægelserne små og får dem til at falde til ro.
+
+Dette er en hybrid mellem adfærd, fysik og styrede animationer. Bassinkanten passeres stadig ad en styret kurve, nu med glatte endepunkter. Fodkontakt, vandets opdrift og hele kroppen simuleres endnu ikke fysisk. Kollisionskorrektioner kan stadig flytte ænder direkte ved kontakt; accelerationens grænse gælder drivkraften i fri bevægelse. Der er endnu ikke et anatomisk skelet med fleksible led langs hele halsen.
+
+Vejen mod større fotorealisme: (1) fodfæste og støttefaser, (2) anatomisk krop og hals med flere led og hud, der følger leddene, (3) individuelle fjerfarver og overfladedetaljer fra referencebilleder, (4) mere naturtro lys, skygger og vand. Fysik skal understøtte de observerede bevægelser; mere elasticitet alene giver ikke større realisme.
 
 ### Ejerens adfærdsobservationer, 4. oktober 2026
 
