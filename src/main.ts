@@ -2,6 +2,7 @@ import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createDuck } from './duck-model';
+import { createFly } from './insect-model';
 import { createEnvironment } from './environment';
 import { Simulation } from './simulation';
 import { getGistrupWeather } from './weather';
@@ -44,6 +45,7 @@ const environment=createEnvironment(scene);
 const sim=new Simulation();
 const duckModels=sim.ducks.map(d=>{const m=createDuck(d.kind);scene.add(m.group);return m});
 const seenWaterEntries=sim.ducks.map(()=>0);
+const insects=sim.ducks.map(()=>{const fly=createFly();scene.add(fly.group);return fly});
 
 // A tiny spiral of pasta: actual 3D helix, shared geometry across pieces.
 class FusilliCurve extends THREE.Curve<THREE.Vector3>{constructor(){super()}getPoint(t:number,target=new THREE.Vector3()){return target.set(Math.cos(t*Math.PI*7)*.028,(t-.5)*.18,Math.sin(t*Math.PI*7)*.028)}}
@@ -101,6 +103,12 @@ function frame(now:number){
  sim.update(dt);environment.update(sim.time,dt);
  for(let i=0;i<sim.ducks.length;i++){
   const d=sim.ducks[i],m=duckModels[i];m.group.position.set(d.x,d.y,d.z);m.group.rotation.y=d.heading;
+  const fly=insects[i];fly.group.visible=!!d.insect;
+  if(d.insect){
+   fly.group.position.set(d.insect.x+Math.sin(sim.time*29)*.035,.49+Math.sin(sim.time*19)*.045,d.insect.z+Math.cos(sim.time*23)*.035);
+   fly.group.rotation.y=d.heading;
+   fly.wings.forEach((wing,index)=>wing.rotation.z=(index?1:-1)*Math.sin(sim.time*67)*.7);
+  }
   m.animate({speed:d.speed,time:sim.time+i*1.71,state:d.state,look:d.look,peck:d.peck,upright:d.upright,headTilt:d.headTilt,displayDip:d.displayDip,accelerationForward:d.ax*Math.sin(d.heading)+d.az*Math.cos(d.heading),accelerationSide:d.ax*Math.cos(d.heading)-d.az*Math.sin(d.heading),jumpProgress:d.jumpProgress,crouch:d.crouch,landing:d.landing});
   if(d.waterEntries>seenWaterEntries[i])environment.ripple(d.x,d.z,1.6);
   seenWaterEntries[i]=d.waterEntries;
@@ -117,7 +125,7 @@ function frame(now:number){
  }
  for(const [id,mesh] of foods)if(!liveIds.has(id)){scene.remove(mesh);foods.delete(id);foodRotations.delete(id)}
  statusTick+=dt;
- if(statusTick>.4){statusTick=0;const eating=sim.ducks.some(d=>d.state==='eat'),approach=sim.ducks.some(d=>d.state==='notice'||d.state==='approach'),swimming=sim.ducks.some(d=>d.state==='swim');$('flock-status').textContent=sim.courtship?(sim.courtship.mutualDisplay?'Hunnen svarer på hannens duk':'Hannen gør kur med rytmiske duk'):eating?'Hunnerne spiser · hannen holder vagt':approach?'Nysgerrighed kræver lidt mod':swimming?'En tur i det blå bassin':sim.ducks.some(d=>d.state==='preen')?'En stille stund med fjerpudsning':sim.ducks.some(d=>d.state==='sleep')?'En lille lur med hovedet ved vingen':'Flokken udforsker haven';if(now>toastUntil&&now-lastCast>6000)$('toast').textContent='De tager sig god tid. Lad dem komme til dig.'}
+ if(statusTick>.4){statusTick=0;const eating=sim.ducks.some(d=>d.state==='eat'),approach=sim.ducks.some(d=>d.state==='notice'||d.state==='approach'),swimming=sim.ducks.some(d=>d.state==='swim');$('flock-status').textContent=sim.courtship?(sim.courtship.mutualDisplay?'Hunnen svarer på hannens duk':'Hannen gør kur med rytmiske duk'):eating?'Hunnerne spiser · hannen holder vagt':approach?'Nysgerrighed kræver lidt mod':sim.ducks.some(d=>d.state==='chase')?'På jagt efter en flue':sim.ducks.some(d=>d.state==='forage')?'Næbbet på opdagelse i jorden':swimming?'En tur i det blå bassin':sim.ducks.some(d=>d.state==='preen')?'En stille stund med fjerpudsning':sim.ducks.some(d=>d.state==='sleep')?'En lille lur med hovedet ved vingen':'Flokken udforsker haven';if(now>toastUntil&&now-lastCast>6000)$('toast').textContent='De tager sig god tid. Lad dem komme til dig.'}
  controls.update();constrainGardenCamera(camera,controls.target);renderer.render(scene,camera);
 }
 renderer.setAnimationLoop(frame);

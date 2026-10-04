@@ -394,6 +394,7 @@ export function createDuck(kind: DuckKind): {
   let preenBlend = 0;
   let sleepBlend = 0;
   let jumpBlend=0;
+  let chaseBlend=0;
   const bodyPitch=new Spring(0,1.4,100,20),bodyRoll=new Spring(0,1.4,100,20);
   const neckForward=new Spring(0,.25,35,5),neckSide=new Spring(0,.25,35,5);
   const bodyExtension=new Spring(1,1,90,18);
@@ -417,6 +418,7 @@ export function createDuck(kind: DuckKind): {
     const headLag=neckForward.step(-forward*.014,dt),headSide=neckSide.step(-lateral*.014,dt);
     // Smooth the posture and expression signals independently of the walking gait.
     const postureResponse = 1 - Math.exp(-dt * 6);
+    chaseBlend += ((state==='chase'?1:0)-chaseBlend)*postureResponse;
     const jump=pose.jumpProgress??-1,airborne=jump>=0;
     jumpBlend+=((airborne?1:0)-jumpBlend)*(1-Math.exp(-dt*25));
     const crouch=pose.crouch??0,landing=pose.landing??0;
@@ -433,7 +435,7 @@ export function createDuck(kind: DuckKind): {
     const peck = Math.max(0, pose.peck);
     const peckAmount = Math.min(1, peck);
     const stride = moving ? Math.min(1, Math.max(.08, pose.speed * 2.5)) : 0;
-    if (moving) gaitPhase += dt * (7.5 + Math.min(4, pose.speed * 9));
+    if (moving) gaitPhase += dt * (7.5 + Math.min(8, pose.speed * 6));
     const phase = gaitPhase;
     const floatTarget=swim?1:state==='enter'&&airborne?THREE.MathUtils.smoothstep(jump,.35,.9):state==='exit'?(airborne?1-THREE.MathUtils.smoothstep(jump,0,.55):1):0;
     swimBlend += (floatTarget - swimBlend) * (1 - Math.exp(-dt * 18));
@@ -453,10 +455,10 @@ export function createDuck(kind: DuckKind): {
     torso.rotation.z = 0;
     neckPivot.scale.setScalar(1);
     head.scale.setScalar(1);
-    neckPivot.rotation.x = peckAmount * 2.42 + low * .70 + display * .69;
+    neckPivot.rotation.x = peckAmount * 2.42 + low * .70 + display * .69 + chaseBlend*.7;
     neckPivot.rotation.y = peckAmount < .3 ? pose.look * .36 : pose.look * .07;
     neckPivot.rotation.z = tiltBlend * .26 * (1 - peckAmount);
-    head.rotation.x = peckAmount * -.22 - low * .75 - display * .14;
+    head.rotation.x = peckAmount * -.22 - low * .75 - display * .14 - chaseBlend*.65;
     head.rotation.y = pose.look * .12;
     head.rotation.z = tiltBlend * .74 * (1 - peckAmount);
     // Fold the neck back towards a wing. Short strokes comb the feathers;

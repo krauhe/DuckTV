@@ -90,6 +90,7 @@ test('female ducks notice, approach, and consume food; the drake never does', ()
   const firstApproach = new Map<string, number>();
   let eaten = false;
   for (let i = 0; i < 400; i++) {
+    const foodAvailable = sim.foods.some(food => !food.eaten);
     sim.update(0.05);
     for (const duck of sim.ducks.filter(duck => duck.kind !== 'drake')) {
       femaleStates.add(duck.state);
@@ -97,8 +98,11 @@ test('female ducks notice, approach, and consume food; the drake never does', ()
     }
     eaten ||= sim.foods.some(food => food.eaten);
     const drake = sim.ducks.find(duck => duck.kind === 'drake')!;
-    assert.equal(drake.state, 'guard');
-    assert.equal(drake.peck, 0);
+    assert.notEqual(drake.state, 'eat');
+    if (foodAvailable) {
+      assert.equal(drake.state, 'guard');
+      assert.equal(drake.peck, 0);
+    }
   }
   assert.ok(femaleStates.has('notice'));
   assert.ok(femaleStates.has('approach'));
@@ -106,6 +110,36 @@ test('female ducks notice, approach, and consume food; the drake never does', ()
   assert.ok(eaten);
   assert.ok(firstApproach.get('buff')! < firstApproach.get('brown')!);
   assert.ok(firstApproach.get('brown')! < firstApproach.get('pied')!);
+});
+
+test('spontaneous ground foraging and faster low-neck chases yield to feeding', () => {
+  const sim = new Simulation(seeded(18));
+  let chased = false, probed = false, ranLow = false;
+  const interrupted = new Set<string>();
+  for (let i = 0; i < 8000; i++) {
+    sim.update(.025);
+    for (const duck of sim.ducks) {
+      assert.equal(!!duck.insect, duck.state === 'chase');
+      if (duck.state === 'chase') {
+        chased = true;
+        ranLow ||= duck.speed > BEHAVIOR.walkSpeed * 1.3 && duck.upright < .2;
+        assert.ok(duck.y === 0 && Math.hypot(duck.x-POND.x,duck.z-POND.z) >= POND.radius);
+        assert.ok(Math.hypot(duck.ax,duck.az) <= DYNAMICS.driveForce/duck.mass + 1e-8);
+      }
+      if (duck.state === 'forage' && duck.peck > .8) { probed = true; assert.ok(duck.speed < .06); }
+    }
+    const activity = sim.ducks.find(d => ['chase','forage'].includes(d.state) && !interrupted.has(d.state));
+    // Let each activity establish its pose before checking interruption.
+    if (activity && (activity.state === 'chase' ? ranLow : probed)) {
+      interrupted.add(activity.state);
+      assert.equal(sim.castFood(-1,1),true);
+      sim.update(.025);
+      assert.ok(sim.ducks.every(d => !['forage','chase'].includes(d.state) && !d.insect));
+      assert.equal(sim.ducks[0].state,'guard');
+    }
+  }
+  assert.ok(chased && probed && ranLow);
+  assert.equal(interrupted.size,2);
 });
 
 test('feeding ducks hesitate mid-approach and react briefly to a nearby new cast', () => {
