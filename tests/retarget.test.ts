@@ -49,7 +49,7 @@ test('bow skin bends without squeezing its cross-section and releases after repl
   for(let ring=0;ring<=32;ring++){
    const a=new THREE.Vector3().fromBufferAttribute(vertices,ring*17),b=new THREE.Vector3().fromBufferAttribute(vertices,ring*17+8);
    assert.ok([...a,...b].every(Number.isFinite));
-   const radius=.047+.065*(1-ring/32)**3+.014*(ring/32)**8;
+   const radius=.047+.065*(1-ring/32)**3-.017*(ring/32)**8;
    assert.ok(Math.abs(a.distanceTo(b)-2*radius)<1e-6,'feather thickness survives the bow');
    const centre=a.add(b).multiplyScalar(.5);centres.push(centre);
    if(previous)path+=previous.distanceTo(centre);previous=centre;
@@ -57,7 +57,8 @@ test('bow skin bends without squeezing its cross-section and releases after repl
   greatestBend=Math.max(greatestBend,path-centres[0].distanceTo(centres[32]));
   model.group.updateMatrixWorld(true);
   const end=skin.localToWorld(centres[32]);
-  assert.ok(end.distanceTo(new THREE.Vector3().copy(mapped.body.head))<1e-6,'skin joins the head pivot');
+  const attachment=model.group.getObjectByName('duck-head')!.localToWorld(new THREE.Vector3(0,.065,.005));
+  assert.ok(end.distanceTo(attachment)<1e-6,'skin overlaps inside the head rather than ending at its pivot');
  }
  assert.ok(greatestBend>.08,'deep bows retain a curved neck rather than a shortened straight tube');
  model.animate({...pose,time:31});assert.equal(skin.visible,true,'land gait uses the same flexible skin after replay');

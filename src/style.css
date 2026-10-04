@@ -8,7 +8,7 @@
 /* Bottom controls: pointer hover, keyboard focus and a tap all reveal the same panel. */
 #settings.control-dock{position:absolute;top:auto;right:auto;left:50%;bottom:12px;transform:translateX(-50%);width:min(790px,calc(100% - 24px));padding:0 16px;border-radius:18px;max-height:80dvh;overflow:auto;z-index:6;background:#fafdf4f0}
 #settings #dock-toggle{width:100%;display:flex;align-items:center;gap:10px;margin:0;padding:12px 0;border:0;background:none;text-align:left;color:#334c39;font-size:12px}
-#clock-summary{margin-left:auto;font-variant-numeric:tabular-nums}
+
 #dock-content{display:none;padding:8px 0 16px}#settings.open #dock-content{display:block}
 .dock-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:22px}#settings h2{font-size:13px;margin:0 0 12px}#settings label{line-height:1.5}#settings input[type=range]{width:100%;accent-color:#356b45}#settings button{padding:9px 11px;border:1px solid #cad9c5;border-radius:9px;background:#fff;color:#334c39;margin-top:8px;font-size:11px}#settings select{font-size:11px}#settings .settings-note{margin:10px 0;font-size:10px}#settings #fullscreen{width:auto;height:auto}#settings .dock-actions{display:flex;gap:6px}#settings #feed{background:#2d4d35;color:white}.bottom-wrap{bottom:65px}.caption{justify-content:center}.version{display:none}
 @media(max-width:600px){.dock-grid{grid-template-columns:1fr;gap:16px}#settings.control-dock{max-height:70dvh}.bottom-wrap{bottom:60px}#settings h2{margin-bottom:5px}}
@@ -66,3 +66,19 @@
  #settings input[type=checkbox]{width:20px;height:20px;vertical-align:middle}
 }
 @media(max-height:500px){.dock-grid{grid-template-columns:1fr 1fr 1fr;gap:12px}#settings.control-dock{max-height:80dvh}.brand .brand-logo{width:36px;height:36px}.brand h1{font-size:16px}}
+
+/* Quiet floating settings tab; the wider sheet appears only when opened. */
+#settings.control-dock{width:176px;padding:0 18px;border:1px solid #ffffff30;border-radius:26px;background:#123d2cda;color:#f0f7f2;backdrop-filter:blur(22px);box-shadow:0 8px 32px #031d2526;scrollbar-width:thin;scrollbar-color:#7b978777 transparent;transition:background .22s ease,box-shadow .22s ease}
+#settings #dock-toggle{justify-content:center;gap:10px;min-height:46px;padding:0;margin:0;font-size:13px;font-weight:550;letter-spacing:.15px;color:inherit;border-radius:24px}
+#settings:not(.open):hover{background:#174c36ef;box-shadow:0 10px 36px #031d2540}
+.settings-icon{width:19px;height:19px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
+.settings-icon circle{fill:#123d2c}
+.settings-chevron{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;opacity:.65;transition:transform .2s ease}
+#settings.open{width:min(790px,calc(100% - 24px));padding:0 22px;border-radius:24px;background:#f2f7f1f2;color:#294635;border-color:#ffffff80;box-shadow:0 16px 60px #061f3438}
+#settings.open .settings-icon circle{fill:#edf4ed}
+#settings.open .settings-chevron{transform:rotate(180deg)}
+#dock-content{padding:12px 0 20px;border-top:1px solid #31543d12}
+#settings select{border:1px solid #34563f16;border-radius:12px;background:#ffffffa8;padding:11px 12px}
+#settings button:not(#dock-toggle){border:1px solid #34563f16;border-radius:12px;background:#ffffffb0}
+@media(pointer:coarse),(max-width:600px){#settings.control-dock{width:176px}#settings.open{width:calc(100% - 20px);padding:0 18px}#settings #dock-toggle{font-size:13px;min-height:46px}}
+@media(prefers-reduced-motion:reduce){#settings.control-dock,.settings-chevron{transition:none}}

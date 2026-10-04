@@ -84,7 +84,7 @@ Samlet fra ejerens input frem til 4. oktober 2026. Dette afsnit er projektets hu
 | Vejr | Ønske om at kunne simulere dagens vejr i 9260 Gistrup. Hold vejrdata, miljø og andeadfærd adskilt, så de kan erstattes hver for sig. |
 | Betjening | Venstre museknap med træk drejer kameraet; højre med træk flytter det. Kort klik kaster pasta uden utilsigtet kast efter kameratræk. Piltast op/ned går frem/tilbage, venstre/højre panorerer sidelæns (tilføjet 4. oktober 2026). |
 | Automatisk kamera | Efter en periode uden manuel kamerabevægelse følger udsigten langsomt gruppen uden at komme for tæt på. Manuel betjening overtager straks. Ventetiden 20 sekunder og autoafstanden 1,9 sceneenheder er nuværende designvalg, ikke ejerens målte værdier. |
-| Tilgængelighed | Browser og GitHub foretrækkes, med en rolig pauseskærmsoplevelse. Repositorynavn DuckTV, privat for nu. Offentlig udgivelse er en senere beslutning. |
+| Tilgængelighed | Browser og GitHub foretrækkes, med en rolig pauseskærmsoplevelse. Repositorynavn DuckTV. Offentlig udgivelse er godkendt af ejeren 4. oktober 2026. |
 | Private input | Egne billeder, fremtidige videoer og andet råt input skal være Git-ignoreret. Brug dem som lokale referencer; gem viden og kildehenvisninger i versionsstyret tekst. |
 | Fremtidig kvalitet | Gradvis større (foto)realisme. Anatomisk skelet, muskelvedhæftninger og AI-trænet bevægelse er en undersøgt mulighed, ikke et besluttet teknologikrav. Ejeren kan optage mere video til justering af adfærd og bevægelse. |
 
@@ -221,15 +221,15 @@ Optag gerne et sammenhængende forløb før, under og efter et kast. Hele flokke
 
 ## GitHub og private input
 
-Repository: [**DuckTV**](https://github.com/krauhe/DuckTV), privat indtil videre. Der er ingen automatisk udgivelse ved push.
+Repository: [**DuckTV**](https://github.com/krauhe/DuckTV), offentligt efter ejerens godkendelse 4. oktober 2026. Push til main udløser test, build og udgivelse.
 
 Læg alle nye billeder, videoer og øvrige rå input i `input/` (opret mappen lokalt efter behov). Hele mappen ignoreres, uanset filtype. `andereferencer/`, `inputs/`, `reference/` og `references/` er også ignoreret; almindelige foto-, video- og lydformater ignoreres desuden overalt i projektet. Referencer skal blive uden for `public/`, så de heller ikke kommer med i webbygningen. Kun bevidst udvalgte, færdige webaktiver bør senere tilføjes til Git.
 
-## GitHub Pages (senere)
+## GitHub Pages
 
-Projektet bygger til `dist/` med relative stier og kan udgives på GitHub Pages. Workflowet i `.github/workflows/pages.yml` bygger, tester og udgiver ved en manuel kørsel. Når projektet skal udgives: kontrollér, at kun projektkode og færdige aktiver indgår, vælg GitHub Actions som Pages-kilde, og kør workflowet. Hjemmesiden er ikke udgivet. Et privat repository betyder ikke nødvendigvis en privat Pages-side; Pages aktiveres først ved en særskilt beslutning om udgivelse.
+[Åbn Gistrup Ande TV](https://krauhe.github.io/DuckTV/). Workflowet i `.github/workflows/pages.yml` tester, bygger og udgiver ved push til main eller manuel kørsel. Siden bruger relative aktivstier og virker under `/DuckTV/`.
 
-Hold referencevideoer/fotos ude af det offentlige repository. Vælg en licens til kode og færdige modeller før offentlig deling. Kontroller størrelse, mobilvisning og vejrkald før frigivelse.
+[QR-kode med logo](public/ande-tv-qr.png) · [QR til udskrift](public/ande-tv-qr-print.pdf). QR-koden åbner selve pauseskærmen. Private referencefiler og lydoptagelser er ikke med i den offentlige udgave. Træningslaboratoriets gemte forsøg kan afspilles, men træningen er pauset.
 
 Vejr: [Open-Meteo](https://open-meteo.com/), CC BY 4.0. Den gratis API er til ikke-kommerciel brug inden for udbyderens grænser. Ved væsentligt flere besøgende bør vejrdata deles via en fælles cache. [Vilkår](https://open-meteo.com/en/terms).
 
@@ -337,3 +337,6 @@ Fødesøgning i græsset fylder nu en større del af den vågne tid: korte skrid
 
 
 Mobil: Siden fylder telefonens viewport i høj- og bredformat, med hensyn til skærmens sikre kanter. Ét kort tryk kaster pasta, én finger drejer, og to fingre flytter/zoomer. Indstillinger åbnes med et tryk nederst. Billedopløsningen tilpasses automatisk; der er ikke længere et detaljevalg. QR-koden indeholder den direkte GitHub Pages-adresse og er kontrollæst med logoet indsat. Private lydoptagelser følger ikke med den offentlige udgave.
+
+
+Hals–hoved-samling: Halsens øverste ring fæstnes inde i kraniets fjerflade og følger hovedets egen rotation. Den smalner inde i hovedet, så der er overlap ved kig, duk, søvn og svømning. En geometrisk regressionstest kontrollerer hele enderingen mod selve hovedoverfladen gennem aktivitetsskift for alle fire ænder.

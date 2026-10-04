@@ -166,7 +166,7 @@ function updateDaylight(dt:number){
  clockTick+=dt;if(clockTick<.2)return;clockTick=0;
  const day=getDaylight(new Date(),timeMode.value==='live'?undefined:dayMinutes);
  dayMinutes=day.minutes;daySlider.value=String(Math.floor(day.minutes));
- $('clock-label').textContent=formatTime(day.minutes);$('clock-summary').textContent=formatTime(day.minutes);
+ $('clock-label').textContent=formatTime(day.minutes);
  daySlider.setAttribute('aria-valuetext',formatTime(day.minutes));
  $('sun-times').textContent=`${day.dateLabel} · Sol op ${formatTime(day.sunrise)} · ned ${formatTime(day.sunset)}`;
  environment.setDaylight(day.light,THREE.MathUtils.clamp((day.minutes-day.sunrise)/(day.sunset-day.sunrise),0,1));

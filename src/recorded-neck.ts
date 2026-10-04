@@ -28,7 +28,7 @@ export function createRecordedNeck(material:THREE.Material,neckColor:string,head
    side.set(Math.abs(tangent.x)>.95?0:1,0,Math.abs(tangent.x)>.95?1:0);
    side.addScaledVector(tangent,-side.dot(tangent)).normalize();normal.crossVectors(tangent,side).normalize();
    // Broad root buried in the breast, then a narrower feathered neck.
-   const radius=.047+.065*Math.pow(1-t,3)+.014*Math.pow(t,8);
+   const radius=.047+.065*Math.pow(1-t,3)-.017*Math.pow(t,8);
    for(let s=0;s<=sides;s++){
     const a=s/sides*Math.PI*2,index=(r*(sides+1)+s)*3;
     positions[index]=point.x+radius*(Math.cos(a)*side.x+Math.sin(a)*normal.x);

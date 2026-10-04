@@ -341,6 +341,7 @@ export function createDuck(kind: DuckKind): {
   neckPivot.add(head);
   const headMat = featherSurface(material(p.head, kind === 'drake' ? .65 : .86),true);
   const headSkin=ellipsoid(head, headMat, [0, .073, .025], [.071, .108, .099]);
+  headSkin.name='duck-skull';
   headSkin.geometry=new THREE.SphereGeometry(1,48,32);
   if(kind==='pied'){
     // Paint the crown directly on the skin: no raised side patches resembling ears.
@@ -625,18 +626,19 @@ export function createDuck(kind: DuckKind): {
       head.quaternion.copy(torso.quaternion).multiply(neckPivot.quaternion).invert();
       if(pose.recordedBody.neckMiddle){
         recordedMiddle.copy(pose.recordedBody.neckMiddle);group.worldToLocal(recordedMiddle);recordedMiddle.applyMatrix4(inverseTorso);
-        recordedEnd.copy(pose.recordedBody.head);group.worldToLocal(recordedEnd);recordedEnd.applyMatrix4(inverseTorso);
+        head.updateMatrix();neckPivot.updateMatrix();
+        recordedEnd.set(0,.065,.005).applyMatrix4(head.matrix).applyMatrix4(neckPivot.matrix);
         recordedRoot.copy(neckPivot.position).multiplyScalar(.62);
         recordedNeck.update(recordedRoot,neckPivot.position,recordedMiddle,recordedEnd);
       }
     }
     if(!curvedRecording){
       neckPivot.updateMatrix();
-      recordedEnd.copy(head.position).applyMatrix4(neckPivot.matrix);
       head.updateMatrix();
-      // Join the back of the skull in chase, not its underside as when upright.
-      desiredNeck.set(0,.073,-.055).applyMatrix4(head.matrix).applyMatrix4(neckPivot.matrix);
-      recordedEnd.lerp(desiredNeck,chaseBlend);
+      // Bury the terminal ring inside the skull, following its own rotation.
+      // The head pivot can lie outside the feathers when looking or bowing.
+      recordedEnd.set(0,.065+chaseBlend*.008,.005-chaseBlend*.035)
+        .applyMatrix4(head.matrix).applyMatrix4(neckPivot.matrix);
       // Anchor the skin inside the breast independently of the rotating head rig.
       // Lower the collar into a bow instead of swinging a rigid tube out of the back.
       const fold=Math.max(peckAmount,comfortBlend,chaseBlend*.6);

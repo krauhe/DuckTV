@@ -27,7 +27,7 @@ test('chase joins the neck to the back of a forward-facing skull and eases back 
  model.group.updateMatrixWorld(true);
  const p=skin.geometry.getAttribute('position');
  const end=new THREE.Vector3().fromBufferAttribute(p,32*17).add(new THREE.Vector3().fromBufferAttribute(p,32*17+8)).multiplyScalar(.5);
- const back=torso.worldToLocal(head.localToWorld(new THREE.Vector3(0,.073,-.055)));
+ const back=torso.worldToLocal(head.localToWorld(new THREE.Vector3(0,.073,-.030)));
  assert.ok(end.distanceTo(back)<1e-5,'neck meets the rear of the skull');
  const direction=new THREE.Vector3(0,0,1).applyQuaternion(head.getWorldQuaternion(new THREE.Quaternion()));
  assert.ok(direction.z>.98&&Math.abs(direction.y)<.1,'bill points forward rather than up');
@@ -58,8 +58,39 @@ test('continuous neck keeps its root inside the breast and carries the pied thro
   const p=skin.geometry.getAttribute('position');
   const center=(ring:number)=>new THREE.Vector3().fromBufferAttribute(p,ring*17).add(new THREE.Vector3().fromBufferAttribute(p,ring*17+8)).multiplyScalar(.5);
   assert.ok(center(0).distanceTo(new THREE.Vector3(0,.08,.065))<1e-6,'root does not rotate out of the back');
-  const target=torso.worldToLocal(head.getWorldPosition(new THREE.Vector3()));
+  const target=torso.worldToLocal(head.localToWorld(new THREE.Vector3(0,.065,.005)));
   assert.ok(center(32).distanceTo(target)<1e-6,'skin reaches the stabilized head');
   for(const v of p.array)assert.ok(Number.isFinite(v));
+ }
+});
+
+
+test('neck terminal ring stays enclosed by the actual skull through turns and activity transitions',()=>{
+ for(const kind of ['drake','buff','brown','pied'] as const){
+  const model=createDuck(kind);
+  const skin=model.group.getObjectByName('duck-recorded-neck') as THREE.Mesh;
+  const skull=model.group.getObjectByName('duck-skull') as THREE.Mesh;
+  const original=skull.material;
+  skull.material=new THREE.MeshBasicMaterial({side:THREE.DoubleSide});
+  const ray=new THREE.Raycaster();let time=0;
+  for(const state of ['rest','eat','chase','swim','preen','sleep','rest'] as const){
+   for(let frame=0;frame<90;frame++){
+    time+=1/60;
+    model.animate({state,time,speed:state==='chase'?1.2:state==='swim'?.3:0,
+     upright:state==='rest'?1:0,look:Math.sin(time*3)*1.15,peck:state==='eat'?1:0,
+     headTilt:Math.sin(time*4)*.48,displayDip:state==='rest'?.7:0});
+    model.group.updateMatrixWorld(true);
+    const center=skull.localToWorld(new THREE.Vector3());
+    const positions=skin.geometry.getAttribute('position');
+    for(let j=0;j<16;j++){
+     const point=skin.localToWorld(new THREE.Vector3().fromBufferAttribute(positions,32*17+j));
+     const distance=center.distanceTo(point);
+     ray.set(center,point.clone().sub(center).normalize());
+     const hits=ray.intersectObject(skull,false);
+     assert.ok(hits.length && hits[0].distance>distance+0.002,`${kind} ${state}: skin rim must overlap inside skull`);
+    }
+   }
+  }
+  (skull.material as THREE.Material).dispose();skull.material=original;
  }
 });
