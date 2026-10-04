@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { DuckKind, DuckPose } from './types';
 import { Spring } from './dynamics';
+import { DuckGait } from './duck-gait';
 
 type Palette = {
   body: string; breast: string; neck: string; head: string; wing: string;
@@ -358,17 +359,22 @@ export function createDuck(kind: DuckKind): {
   const legs: THREE.Group[] = [];
   const feet: THREE.Group[] = [];
   const upperLegs: THREE.Mesh[] = [], lowerLegs: THREE.Mesh[] = [];
+  const thighs: THREE.Mesh[] = [], knees: THREE.Mesh[] = [];
   const hocks: THREE.Mesh[] = [];
   for (const side of [-1, 1]) {
     const leg = new THREE.Group();
     leg.name = side < 0 ? 'duck-left-leg' : 'duck-right-leg';
     group.add(leg);
-    for (const parts of [upperLegs, lowerLegs]) {
+    for (const parts of [thighs, upperLegs, lowerLegs]) {
       const bone = new THREE.Mesh(cylinder, footMat);
+      bone.name=`duck-${side<0?'left':'right'}-${parts===thighs?'thigh':parts===upperLegs?'shin':'tarsus'}`;
       bone.castShadow = true;
       leg.add(bone); parts.push(bone);
     }
-    hocks.push(ellipsoid(leg, footMat, [0, 0, 0], [.022, .025, .022]));
+    const hock=ellipsoid(leg, footMat, [0, 0, 0], [.022, .025, .022]);
+    hock.name=side<0?'duck-left-hock':'duck-right-hock'; hocks.push(hock);
+    const knee=ellipsoid(leg, material(p.body), [0,0,0], [.037,.037,.037]);
+    knee.name=side<0?'duck-left-knee':'duck-right-knee'; knees.push(knee);
     const foot = webbedFoot(leg, footMat);
     foot.name = side < 0 ? 'duck-left-foot' : 'duck-right-foot';
     legs.push(leg);
@@ -385,6 +391,7 @@ export function createDuck(kind: DuckKind): {
   let sleepBlend = 0;
   let jumpBlend=0;
   let chaseBlend=0;
+  const gait = new DuckGait();
   const bodyPitch=new Spring(0,1.4,100,20),bodyRoll=new Spring(0,1.4,100,20);
   const neckForward=new Spring(0,.25,35,5),neckSide=new Spring(0,.25,35,5);
   const bodyExtension=new Spring(1,1,90,18);
@@ -404,6 +411,9 @@ export function createDuck(kind: DuckKind): {
   const legDirection = new THREE.Vector3(), legBend = new THREE.Vector3();
   const boneDirection = new THREE.Vector3();
   const legOrigin = new THREE.Vector3();
+  const kneePosition = new THREE.Vector3(), footLocal = new THREE.Vector3();
+  const rootPosition = new THREE.Vector3(), lastRootPosition = new THREE.Vector3();
+  let hasRootPosition = false;
   function placeBone(mesh: THREE.Mesh, from: THREE.Vector3, to: THREE.Vector3, radius: number) {
     boneDirection.copy(to).sub(from);
     mesh.position.copy(from).add(to).multiplyScalar(.5);
@@ -438,7 +448,11 @@ export function createDuck(kind: DuckKind): {
     const peck = Math.max(0, pose.peck);
     const peckAmount = Math.min(1, peck);
     const stride = moving ? Math.min(1, Math.max(.08, pose.speed * 2.5)) : 0;
-    if (moving) gaitPhase += dt * (7.5 + Math.min(8, pose.speed * 6));
+    group.updateMatrixWorld(true);
+    group.getWorldPosition(rootPosition);
+    const travel = hasRootPosition ? Math.min(.1, rootPosition.distanceTo(lastRootPosition)) : 0;
+    if (moving) gaitPhase += travel * 19;
+    lastRootPosition.copy(rootPosition); hasRootPosition = true;
     const phase = gaitPhase;
     const floatTarget=swim?1:state==='enter'&&airborne?THREE.MathUtils.smoothstep(jump,.35,.9):state==='exit'?(airborne?1-THREE.MathUtils.smoothstep(jump,0,.55):1):0;
     swimBlend += (floatTarget - swimBlend) * (1 - Math.exp(-dt * 18));
@@ -508,6 +522,7 @@ export function createDuck(kind: DuckKind): {
       head.quaternion.copy(parentRotation).multiply(steadyHeadRotation);
     }
     torso.updateMatrix();
+    gait.update(dt,rootPosition,group.rotation.y,!airborne && swimBlend<.1 && sleepBlend<.1 && crouch===0);
     for (let i = 0; i < 2; i++) {
       const side = i === 0 ? -1 : 1;
       const folded=Math.max(swimBlend,sleepBlend,jumpBlend*.8,crouch*.25);
@@ -515,24 +530,28 @@ export function createDuck(kind: DuckKind): {
       // Attach inside the feathered body, following its shape, bob and lean.
       legs[i].position.set(side*.112, -.13, -.055)
         .multiply(bodyShape.scale).applyMatrix4(torso.matrix);
-      const footPhase = phase + i*Math.PI;
-      const swing = Math.sin(footPhase)*stride;
-      const lift = Math.max(0, Math.cos(footPhase))*stride*.10;
-      // Support feet stay on the ground; folding draws them up towards the hip.
-      feet[i].position.set(side*.121, .004+lift, -.07+swing*.13).sub(legs[i].position);
+      const step = gait.feet[i];
+      // Preserve the support foot's world position and heading as the body passes it.
+      footLocal.copy(step.position); group.worldToLocal(footLocal);
+      feet[i].position.copy(footLocal).sub(legs[i].position);
       feet[i].position.lerp(ankle.set(side*.009, -.085, .015), folded);
-      feet[i].rotation.x = folded*.6;
+      feet[i].rotation.set(step.lift*.22*(1-folded)+folded*.6,
+        Math.atan2(Math.sin(step.yaw-group.rotation.y),Math.cos(step.yaw-group.rotation.y))*(1-folded),0);
       ankle.copy(feet[i].position).addScaledVector(yAxis, .025);
-      // Two fixed-length links bend at the hock instead of leaving a gap or
-      // stretching the whole leg (and foot) as the body changes posture.
-      const upperLength=.25, lowerLength=.31;
-      const reach=Math.max(.061, Math.min(.559, ankle.length()));
-      legDirection.copy(ankle).normalize();
+      // A forward knee sits mostly inside the feathers; the hock bends backwards.
+      const kneeAngle=.98+step.lift*.24+folded*.4;
+      kneePosition.set(0,-Math.cos(kneeAngle)*.15,Math.sin(kneeAngle)*.15);
+      knees[i].position.copy(kneePosition);
+      const upperLength=.32, lowerLength=.30;
+      legDirection.copy(ankle).sub(kneePosition);
+      const reach=Math.max(Math.abs(upperLength-lowerLength)+.001, Math.min(upperLength+lowerLength-.001, legDirection.length()));
+      legDirection.normalize();
       const along=(upperLength**2-lowerLength**2+reach**2)/(2*reach);
       const bend=Math.sqrt(Math.max(0, upperLength**2-along**2));
       legBend.set(0,0,-1).addScaledVector(legDirection,legDirection.z).normalize();
-      joint.copy(legDirection).multiplyScalar(along).addScaledVector(legBend,bend);
-      placeBone(upperLegs[i],legOrigin,joint,.018);
+      joint.copy(kneePosition).addScaledVector(legDirection,along).addScaledVector(legBend,bend);
+      placeBone(thighs[i],legOrigin,kneePosition,.023);
+      placeBone(upperLegs[i],kneePosition,joint,.018);
       placeBone(lowerLegs[i],joint,ankle,.014);
       hocks[i].position.copy(joint);
     }

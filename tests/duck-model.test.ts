@@ -4,6 +4,27 @@ import * as THREE from 'three';
 import { createDuck } from '../src/duck-model.ts';
 import type { DuckKind, DuckPose } from '../src/types.ts';
 
+test('knee and hock articulate while leg segment lengths stay fixed through walking and turns',()=>{
+ for(const speed of [.23,.82,1.65]){
+  const model=createDuck('buff');let kneeMin=Infinity,kneeMax=-Infinity;
+  for(let i=1;i<=600;i++){
+   const heading=Math.sin(i/100)*.8;
+   model.group.rotation.y=heading;
+   model.group.position.x+=Math.sin(heading)*speed/60;
+   model.group.position.z+=Math.cos(heading)*speed/60;
+   model.animate({state:speed>1?'chase':'wander',speed,time:i/60,upright:1,look:0,peck:0,headTilt:0,displayDip:0});
+   for(const side of ['left','right']){
+    const knee=model.group.getObjectByName(`duck-${side}-knee`)!;
+    kneeMin=Math.min(kneeMin,knee.position.z);kneeMax=Math.max(kneeMax,knee.position.z);
+    for(const [bone,length] of [['thigh',.15],['shin',.32],['tarsus',.30]] as const){
+     assert.ok(Math.abs(model.group.getObjectByName(`duck-${side}-${bone}`)!.scale.y-length)<1e-6,'bones bend without stretching');
+    }
+   }
+  }
+  assert.ok(kneeMax-kneeMin>.01,'knee flexes during the swing');
+ }
+});
+
 test('legs stay attached inside the body through posture changes while resting feet stay grounded', () => {
  const model=createDuck('buff');
  const body=model.group.getObjectByName('duck-body-shape')!;
