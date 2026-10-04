@@ -4,6 +4,27 @@ import * as THREE from 'three';
 import { createDuck } from '../src/duck-model.ts';
 import type { DuckKind, DuckPose } from '../src/types.ts';
 
+test('legs stay attached inside the body through posture changes while resting feet stay grounded', () => {
+ const model=createDuck('buff');
+ const body=model.group.getObjectByName('duck-body-shape')!;
+ const legs=['duck-left-leg','duck-right-leg'].map(name=>model.group.getObjectByName(name)!);
+ const feet=['duck-left-foot','duck-right-foot'].map(name=>model.group.getObjectByName(name)!);
+ const pose:DuckPose={state:'rest',speed:0,time:0,look:0,peck:0,upright:1,headTilt:0,displayDip:0};
+ const anchor=new THREE.Vector3(), foot=new THREE.Vector3();
+ for(let i=1;i<=480;i++){
+  const moving=i>360;
+  model.animate({...pose,time:i/60,upright:i<120||i>240?1:0,state:moving?'wander':'rest',speed:moving?1.2:0,accelerationSide:moving?1:0});
+  model.group.updateMatrixWorld(true);
+  legs.forEach((leg,index)=>{
+   body.worldToLocal(leg.getWorldPosition(anchor));
+   assert.ok(anchor.distanceTo(new THREE.Vector3(index===0?-.112:.112,-.13,-.055))<1e-6,'leg root remains inside the moving body');
+   feet[index].getWorldPosition(foot);
+   assert.ok(foot.y>=.0031,'feet do not penetrate the ground');
+   if(!moving)assert.ok(Math.abs(foot.y-.0032)<1e-6,'resting feet stay on the ground as the body changes height');
+  });
+ }
+});
+
 test('acceleration bends the body and neck gradually and settles after the force ends',()=>{
  const model=createDuck('buff'),body=model.group.getObjectByName('duck-torso')!;
  const head=model.group.getObjectByName('duck-head')!;

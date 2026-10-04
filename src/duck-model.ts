@@ -56,19 +56,6 @@ function ellipsoid(
   return mesh;
 }
 
-function segment(
-  parent: THREE.Object3D, mat: THREE.Material,
-  a: THREE.Vector3, b: THREE.Vector3, radiusA: number, radiusB: number,
-): THREE.Mesh {
-  const geometry = new THREE.CylinderGeometry(radiusB, radiusA, a.distanceTo(b), 9, 1);
-  const mesh = new THREE.Mesh(geometry, mat);
-  mesh.position.copy(a).add(b).multiplyScalar(0.5);
-  mesh.quaternion.setFromUnitVectors(yAxis, b.clone().sub(a).normalize());
-  mesh.castShadow = true;
-  parent.add(mesh);
-  return mesh;
-}
-
 type Ring = { y: number; cx: number; cz: number; rx: number; rz: number; color?: string };
 
 /** A smooth skin of elliptical rings, coloured by vertex so markings do not form stacked toy shapes. */
@@ -366,25 +353,28 @@ export function createDuck(kind: DuckKind): {
   }
   bill(head, material(p.bill), material(kind === 'drake' ? '#9f875a' : '#a87550'));
 
+  combineRigidDetails(group);
   const footMat = material(p.foot);
   const legs: THREE.Group[] = [];
   const feet: THREE.Group[] = [];
+  const upperLegs: THREE.Mesh[] = [], lowerLegs: THREE.Mesh[] = [];
+  const hocks: THREE.Mesh[] = [];
   for (const side of [-1, 1]) {
     const leg = new THREE.Group();
     leg.name = side < 0 ? 'duck-left-leg' : 'duck-right-leg';
-    leg.position.set(side * .112, .299, -.094);
     group.add(leg);
-    segment(leg, footMat, new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(side * .009, -.242, .023), .018, .014);
-    ellipsoid(leg, footMat, [side * .009, -.240, .026],
-      [.022, .027, .026]);
+    for (const parts of [upperLegs, lowerLegs]) {
+      const bone = new THREE.Mesh(cylinder, footMat);
+      bone.castShadow = true;
+      leg.add(bone); parts.push(bone);
+    }
+    hocks.push(ellipsoid(leg, footMat, [0, 0, 0], [.022, .025, .022]));
     const foot = webbedFoot(leg, footMat);
-    foot.position.x = side * .009;
+    foot.name = side < 0 ? 'duck-left-foot' : 'duck-right-foot';
     legs.push(leg);
     feet.push(foot);
   }
 
-  combineRigidDetails(group);
   let previousTime = 0;
   let gaitPhase = 0;
   let swimBlend = 0;
@@ -410,6 +400,16 @@ export function createDuck(kind: DuckKind): {
   const sleepingHeadRotation = new THREE.Quaternion().setFromEuler(
     new THREE.Euler(0, Math.PI + (kind === 'brown' || kind === 'drake' ? -.3 : .3), 0),
   );
+  const ankle = new THREE.Vector3(), joint = new THREE.Vector3();
+  const legDirection = new THREE.Vector3(), legBend = new THREE.Vector3();
+  const boneDirection = new THREE.Vector3();
+  const legOrigin = new THREE.Vector3();
+  function placeBone(mesh: THREE.Mesh, from: THREE.Vector3, to: THREE.Vector3, radius: number) {
+    boneDirection.copy(to).sub(from);
+    mesh.position.copy(from).add(to).multiplyScalar(.5);
+    mesh.scale.set(radius, boneDirection.length(), radius);
+    mesh.quaternion.setFromUnitVectors(yAxis, boneDirection.normalize());
+  }
 
   function animate(pose: DuckPose): void {
     const { state, time } = pose;
@@ -507,16 +507,34 @@ export function createDuck(kind: DuckKind): {
       parentRotation.copy(torso.quaternion).multiply(neckPivot.quaternion).invert();
       head.quaternion.copy(parentRotation).multiply(steadyHeadRotation);
     }
+    torso.updateMatrix();
     for (let i = 0; i < 2; i++) {
+      const side = i === 0 ? -1 : 1;
       const folded=Math.max(swimBlend,sleepBlend,jumpBlend*.8,crouch*.25);
       legs[i].visible = folded < .99;
-      // Tuck the feet up towards the body in flight, rather than detaching the leg roots.
-      legs[i].position.y = .299 - .27 * Math.max(swimBlend,sleepBlend) - crouch*.075;
-      legs[i].scale.y = Math.max(.01, 1 - folded);
-      const swing = Math.sin(phase + i * Math.PI) * stride;
-      legs[i].rotation.x = swing * .47+jumpBlend*.6;
-      feet[i].rotation.x = -legs[i].rotation.x * .78 +
-        Math.max(0, -swing) * .16;
+      // Attach inside the feathered body, following its shape, bob and lean.
+      legs[i].position.set(side*.112, -.13, -.055)
+        .multiply(bodyShape.scale).applyMatrix4(torso.matrix);
+      const footPhase = phase + i*Math.PI;
+      const swing = Math.sin(footPhase)*stride;
+      const lift = Math.max(0, Math.cos(footPhase))*stride*.10;
+      // Support feet stay on the ground; folding draws them up towards the hip.
+      feet[i].position.set(side*.121, .004+lift, -.07+swing*.13).sub(legs[i].position);
+      feet[i].position.lerp(ankle.set(side*.009, -.085, .015), folded);
+      feet[i].rotation.x = folded*.6;
+      ankle.copy(feet[i].position).addScaledVector(yAxis, .025);
+      // Two fixed-length links bend at the hock instead of leaving a gap or
+      // stretching the whole leg (and foot) as the body changes posture.
+      const upperLength=.25, lowerLength=.31;
+      const reach=Math.max(.061, Math.min(.559, ankle.length()));
+      legDirection.copy(ankle).normalize();
+      const along=(upperLength**2-lowerLength**2+reach**2)/(2*reach);
+      const bend=Math.sqrt(Math.max(0, upperLength**2-along**2));
+      legBend.set(0,0,-1).addScaledVector(legDirection,legDirection.z).normalize();
+      joint.copy(legDirection).multiplyScalar(along).addScaledVector(legBend,bend);
+      placeBone(upperLegs[i],legOrigin,joint,.018);
+      placeBone(lowerLegs[i],joint,ankle,.014);
+      hocks[i].position.copy(joint);
     }
   }
 
