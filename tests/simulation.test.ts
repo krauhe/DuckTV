@@ -16,6 +16,50 @@ function advance(sim: Simulation, seconds: number): void {
   for (let remaining = seconds; remaining > 0; remaining -= 0.1) sim.update(Math.min(remaining, 0.1));
 }
 
+test('food beside the camera tempts the flock without drawing it inside the preferred metre',()=>{
+ const sim=new Simulation(seeded(71));
+ sim.setViewer(-3,-2);
+ assert.equal(sim.castFood(-3,-2),true);
+ let hesitated=false,minGap=Infinity;
+ for(let i=0;i<800;i++){
+  sim.update(.025);
+  for(const d of sim.ducks){
+   minGap=Math.min(minGap,Math.hypot(d.x+3,d.z+2));
+   hesitated ||=d.wary&&d.state==='approach';
+  }
+ }
+ assert.ok(hesitated,'females show interest but hesitate near the camera');
+ assert.ok(minGap>=1,'a stationary viewer retains roughly a metre of space');
+ assert.ok(sim.foods.length>0&&sim.foods.every(f=>!f.eaten),'food at the camera remains uneaten');
+ sim.setViewer(6,8.8);
+ advance(sim,20);
+ assert.ok(sim.foods.some(f=>f.eaten)||sim.foods.length===0,'backing away lets feeding resume');
+ assert.notEqual(sim.ducks[0].state,'eat');
+});
+
+test('a close camera interrupts feeding and retreat remains gradual near hedges and water',()=>{
+ const sim=new Simulation(seeded(7));
+ sim.castFood(-1,-.3);
+ for(let i=0;i<600&&!sim.ducks.some(d=>d.state==='eat');i++)sim.update(.025);
+ const duck=sim.ducks.find(d=>d.state==='eat')!;assert.ok(duck);
+ const viewer={x:duck.x+.25,z:duck.z};sim.setViewer(viewer.x,viewer.z);
+ const before={x:duck.x,z:duck.z};sim.update(.025);
+ assert.equal(duck.state,'retreat');assert.equal(duck.peck,0);
+ assert.ok(Math.hypot(duck.x-before.x,duck.z-before.z)<.06,'no fear teleport');
+ advance(sim,5);
+ assert.ok(Math.hypot(duck.x-viewer.x,duck.z-viewer.z)>1.1);
+ for(const camera of [{x:-4.7,z:-3.4},{x:1,z:-1.1},{x:POND.x,z:POND.z}]){
+  sim.setViewer(camera.x,camera.z);
+  for(let i=0;i<400;i++){
+   sim.update(.025);
+   for(const d of sim.ducks){
+    assert.ok(Number.isFinite(d.x+d.z+d.heading));
+    assert.ok(d.x>=GARDEN.minX&&d.x<=GARDEN.maxX&&d.z>=GARDEN.minZ&&d.z<=GARDEN.maxZ);
+   }
+  }
+ }
+});
+
 test('pond flights follow gravity, clear the rim, and signal a single water landing',()=>{
  const sim=new Simulation(seeded(99));
  const samples=new Map<string,number[]>();

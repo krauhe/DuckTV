@@ -29,6 +29,10 @@ export const BEHAVIOR = {
   swimSpeed: 0.36,
   guardSpeed: 0.55,
   turnSpeed: 2.4,
+  // Approximate metres on the ground plane; individual preferences, not measured data.
+  viewerDistance: { drake: 1.1, buff: 1.05, brown: 1.15, pied: 1.25 },
+  viewerReleaseMargin: .45,
+  retreatSpeed: 1.15,
   guardFollowStart: 1.15,
   guardFollowStop: 0.65,
   wanderMin: 2.4,
@@ -77,6 +81,7 @@ export const BEHAVIOR = {
 } as const;
 
 export interface Duck {
+  wary: boolean;
   insect?: Vec2;
   mass:number;
   inertia:number;
@@ -125,6 +130,9 @@ export interface Food {
 }
 
 interface Intent {
+  retreating: boolean;
+  retreatTarget?: Vec2;
+  viewerSide?: number;
   exploreAt: number;
   exploreStarted: number;
   exploreCount: number;
@@ -212,11 +220,12 @@ export class Simulation {
       const duck: Duck = {
         mass:[2,1.7,1.85,1.8][index],inertia:[2,1.7,1.85,1.8][index]*.12,vx:0,vz:0,ax:0,az:0,angularVelocity:0,
         jumpProgress:-1,crouch:0,landing:0,waterEntries:0,
-        id: kind, kind, x: start.x, z: start.z, y: 0,
+        id: kind, kind, x: start.x, z: start.z, y: 0, wary: false,
         heading: start.heading, state: kind === 'drake' ? 'guard' : 'wander',
         speed: 0, look: 0, peck: 0, upright: 1, headTilt: 0, displayDip: 0,
       };
       this.intents.set(duck.id, {
+        retreating: false,
         exploreAt: BEHAVIOR.exploreFirstAt + index * 3,
         exploreStarted: 0, exploreCount: index % 2, forageStep: -1,
         moved:false,landedAt:-Infinity,
@@ -286,7 +295,12 @@ export class Simulation {
     for (const duck of this.ducks) {
       const intent = this.intents.get(duck.id)!;
       intent.moved=false;
+      duck.wary=false;
       duck.landing*=Math.exp(-dt*14);
+      if(this.avoidViewer(duck,intent,dt)){
+        if(!intent.moved)this.brake(duck,intent,dt);
+        this.updateExpression(duck,dt);continue;
+      }
       if (this.courtship && (duck.kind === 'drake' || duck.id === this.courtship.partnerId)) {
         const partner = this.ducks.find(other => duck.kind === 'drake' ? other.id === this.courtship!.partnerId : other.kind === 'drake')!;
         duck.state = duck.kind === 'drake' ? 'guard' : 'rest';
@@ -323,6 +337,66 @@ export class Simulation {
     this.courtship = null;
     this.nextDisplayAt = this.time + BEHAVIOR.displayCooldown;
     for (const duck of this.ducks) duck.displayDip = 0;
+  }
+
+  private avoidViewer(duck: Duck, intent: Intent, dt: number): boolean {
+    // Complete a jump before reacting, so fear cannot cancel gravity mid-flight.
+    if(duck.state==='exit'||(duck.state==='enter'&&intent.phase==='cross'))return false;
+    const gap=distance(duck,this.viewer),radius=BEHAVIOR.viewerDistance[duck.kind];
+    const closing=gap>1e-5?Math.max(0,((this.viewer.x-duck.x)*duck.vx+(this.viewer.z-duck.z)*duck.vz)/gap):0;
+    const stopping=closing*closing/(2*DYNAMICS.driveForce/duck.mass);
+    if(!intent.retreating && gap>=radius+.08+stopping)return false;
+    if(intent.retreating && gap>=radius+BEHAVIOR.viewerReleaseMargin){
+      intent.retreating=false;intent.retreatTarget=undefined;
+      if(duck.state==='retreat')duck.state=duck.kind==='drake'?'guard':'wander';
+      intent.timer=0;return false;
+    }
+    if(!intent.retreating)intent.route=undefined;
+    intent.retreating=true;duck.wary=true;
+    this.endDisplay();duck.peck=0;duck.insect=undefined;duck.look=0;
+    intent.foodId=undefined;
+    intent.comfortAt=Math.max(intent.comfortAt,this.time+8);
+    const inWater=duck.state==='swim';
+    if(!inWater){duck.state='retreat';intent.queueAt=Infinity;}
+    if(!intent.retreatTarget || distance(intent.retreatTarget,this.viewer)<radius+.4 || distance(duck,intent.retreatTarget)<.1){
+      // Choose a reachable escape along the hedge or within the water, rather
+      // than repeatedly pushing into an obstacle directly behind the duck.
+      let best:Vec2={x:duck.x,z:duck.z},score=-Infinity;
+      const away=Math.atan2(duck.z-this.viewer.z,duck.x-this.viewer.x);
+      for(let i=0;i<16;i++){
+        const angle=away+i*Math.PI/8;
+        let p={x:duck.x+Math.cos(angle)*1.1,z:duck.z+Math.sin(angle)*1.1};
+        if(inWater){
+          const dx=p.x-POND.x,dz=p.z-POND.z,r=Math.hypot(dx,dz),limit=POND.radius-BEHAVIOR.waterEdgeMargin;
+          if(r>limit)p={x:POND.x+dx/r*limit,z:POND.z+dz/r*limit};
+        }else p=this.safeLand(p);
+        const merit=distance(p,this.viewer)-distance(p,duck)*.2;
+        if(merit>score){score=merit;best=p;}
+      }
+      intent.retreatTarget=best;
+    }
+    if(inWater)this.move(duck,intent.retreatTarget,BEHAVIOR.swimSpeed,dt);
+    else this.moveLand(duck,intent.retreatTarget,BEHAVIOR.retreatSpeed,dt);
+    return true;
+  }
+
+  private viewerWaypoint(duck: Duck, target: Vec2, intent: Intent): Vec2 {
+    const radius=BEHAVIOR.viewerDistance[duck.kind]+.18;
+    let goal=target;
+    const toViewer=distance(goal,this.viewer);
+    if(toViewer<radius){
+      // Stay on this side of food that is too close to the observer.
+      const gap=distance(duck,this.viewer);
+      const dx=gap>.01?(duck.x-this.viewer.x)/gap:1;
+      const dz=gap>.01?(duck.z-this.viewer.z)/gap:0;
+      goal=this.safeLand({x:this.viewer.x+dx*radius,z:this.viewer.z+dz*radius});
+    }
+    const dx=goal.x-duck.x,dz=goal.z-duck.z,length2=dx*dx+dz*dz;
+    const t=length2?clamp(((this.viewer.x-duck.x)*dx+(this.viewer.z-duck.z)*dz)/length2,0,1):0;
+    if(t<=.001||distance({x:duck.x+dx*t,z:duck.z+dz*t},this.viewer)>=radius-.01){intent.viewerSide=undefined;return goal;}
+    intent.viewerSide??=((duck.x-this.viewer.x)*dz-(duck.z-this.viewer.z)*dx>=0?1:-1);
+    const angle=Math.atan2(duck.z-this.viewer.z,duck.x-this.viewer.x)+intent.viewerSide*.3;
+    return this.safeLand({x:this.viewer.x+Math.cos(angle)*(radius+.12),z:this.viewer.z+Math.sin(angle)*(radius+.12)});
   }
 
   private explore(duck: Duck, intent: Intent, dt: number): boolean {
@@ -433,10 +507,10 @@ export class Simulation {
     const relaxed = posturePhase > 11 && posturePhase < 17;
     const comfortable=duck.state==='preen'||duck.state==='sleep';
     const searching = duck.state === 'chase' || duck.state === 'forage';
-    const uprightTarget = duck.state === 'swim' || comfortable || searching ? 0 : inWater || displaying || duck.state === 'notice' ? 1 : relaxed ? 0.12 : 1;
+    const uprightTarget = duck.wary ? 1 : duck.state === 'swim' || comfortable || searching ? 0 : inWater || displaying || duck.state === 'notice' ? 1 : relaxed ? 0.12 : 1;
     duck.upright += (uprightTarget - duck.upright) * (1 - Math.exp(-dt * 2.5));
     const curiosityPhase = (this.time + index * 3.7) % 13;
-    const curious = !searching && !comfortable && !inWater && !displaying && duck.state !== 'eat' && (intent.idleFor > .6 || duck.state === 'notice') && curiosityPhase < 2.6;
+    const curious = !duck.wary && !searching && !comfortable && !inWater && !displaying && duck.state !== 'eat' && (intent.idleFor > .6 || duck.state === 'notice') && curiosityPhase < 2.6;
     const tiltTarget = curious ? Math.sin(Math.PI * curiosityPhase / 2.6) * (index % 2 ? -.35 : .35) : 0;
     duck.headTilt += (tiltTarget - duck.headTilt) * (1 - Math.exp(-dt * 7));
     if (curious && duck.state !== 'notice') this.face(duck, this.viewer);
@@ -508,6 +582,10 @@ export class Simulation {
       this.moveLand(duck, food, BEHAVIOR.approachSpeed * this.temperament(duck.kind), dt);
       intent.approachTravel += distance(before, duck);
       duck.look = 0;
+      if(distance(food,this.viewer)<BEHAVIOR.viewerDistance[duck.kind] && distance(duck,food)>BEHAVIOR.foodReach){
+        duck.wary=true;
+        duck.look=Math.sin(this.time*2)*.28;
+      }
       if (distance(duck, food) <= BEHAVIOR.foodReach) {
         duck.state = 'eat';
         intent.peckTimer = BEHAVIOR.peckSeconds;
@@ -689,7 +767,8 @@ export class Simulation {
 
   private moveLand(duck: Duck, target: Vec2, speed: number, dt: number): void {
     const safeTarget = this.safeLand(target);
-    const waypoint = this.landWaypoint(duck, safeTarget, this.intents.get(duck.id)!);
+    const intent=this.intents.get(duck.id)!;
+    const waypoint = this.landWaypoint(duck, this.viewerWaypoint(duck,safeTarget,intent), intent);
     this.move(duck, waypoint, speed, dt);
     this.constrainLandMotion(duck);
   }

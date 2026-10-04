@@ -61,7 +61,7 @@ let toastUntil=0;
 function toast(text:string){$('toast').textContent=text;toastUntil=performance.now()+6000}
 let lastCast=0;
 function cast(x:number,z:number){
- if(sim.castFood(x,z)){lastCast=performance.now();toast('Et lille kast. Hunnerne nærmer sig, når de tør.');return true}
+ if(sim.castFood(x,z)){lastCast=performance.now();toast(Math.hypot(x-camera.position.x,z-camera.position.z)<1.4?'Pastaen ligger tæt på dig. Træk kameraet lidt tilbage, og se om de tør.':'Et lille kast. Hunnerne nærmer sig, når de tør.');return true}
  if(Math.hypot(x-POND.x,z-POND.z)<POND.radius+.35)toast('Kast på græsset ved siden af bassinet.');
  else toast('Giv flokken et øjeblik, og kast lidt på græsset.');
  return false;
@@ -99,6 +99,7 @@ let last=performance.now();let statusTick=0;
 function frame(now:number){
  const dt=Math.min((now-last)/1000,.05);last=now;
  if(document.hidden)return;
+ controls.update();constrainGardenCamera(camera,controls.target);
  sim.setViewer(camera.position.x,camera.position.z);
  sim.update(dt);environment.update(sim.time,dt);
  for(let i=0;i<sim.ducks.length;i++){
@@ -125,8 +126,8 @@ function frame(now:number){
  }
  for(const [id,mesh] of foods)if(!liveIds.has(id)){scene.remove(mesh);foods.delete(id);foodRotations.delete(id)}
  statusTick+=dt;
- if(statusTick>.4){statusTick=0;const eating=sim.ducks.some(d=>d.state==='eat'),approach=sim.ducks.some(d=>d.state==='notice'||d.state==='approach'),swimming=sim.ducks.some(d=>d.state==='swim');$('flock-status').textContent=sim.courtship?(sim.courtship.mutualDisplay?'Hunnen svarer på hannens duk':'Hannen gør kur med rytmiske duk'):eating?'Hunnerne spiser · hannen holder vagt':approach?'Nysgerrighed kræver lidt mod':sim.ducks.some(d=>d.state==='chase')?'På jagt efter en flue':sim.ducks.some(d=>d.state==='forage')?'Næbbet på opdagelse i jorden':swimming?'En tur i det blå bassin':sim.ducks.some(d=>d.state==='preen')?'En stille stund med fjerpudsning':sim.ducks.some(d=>d.state==='sleep')?'En lille lur med hovedet ved vingen':'Flokken udforsker haven';if(now>toastUntil&&now-lastCast>6000)$('toast').textContent='De tager sig god tid. Lad dem komme til dig.'}
- controls.update();constrainGardenCamera(camera,controls.target);renderer.render(scene,camera);
+ if(statusTick>.4){statusTick=0;const eating=sim.ducks.some(d=>d.state==='eat'),approach=sim.ducks.some(d=>d.state==='notice'||d.state==='approach'),swimming=sim.ducks.some(d=>d.state==='swim');$('flock-status').textContent=sim.ducks.some(d=>d.wary)?(sim.ducks.some(d=>d.state==='retreat'||(d.state==='swim'&&d.wary))?'De trækker sig · giv dem lidt afstand':'Pastaen frister, men du er lidt tæt på'):sim.courtship?(sim.courtship.mutualDisplay?'Hunnen svarer på hannens duk':'Hannen gør kur med rytmiske duk'):eating?'Hunnerne spiser · hannen holder vagt':approach?'Nysgerrighed kræver lidt mod':sim.ducks.some(d=>d.state==='chase')?'På jagt efter en flue':sim.ducks.some(d=>d.state==='forage')?'Næbbet på opdagelse i jorden':swimming?'En tur i det blå bassin':sim.ducks.some(d=>d.state==='preen')?'En stille stund med fjerpudsning':sim.ducks.some(d=>d.state==='sleep')?'En lille lur med hovedet ved vingen':'Flokken udforsker haven';if(now>toastUntil&&now-lastCast>6000)$('toast').textContent='De tager sig god tid. Lad dem komme til dig.'}
+ renderer.render(scene,camera);
 }
 renderer.setAnimationLoop(frame);
 document.addEventListener('visibilitychange',()=>last=performance.now());

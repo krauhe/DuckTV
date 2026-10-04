@@ -71,6 +71,12 @@ Efter ejerens beskrivelse tager alle fire ænder nu individuelle pauser med kort
 
 Ejeren beskriver hurtige løb efter fluer med halsen sænket samt roden i jorden. Alle fire ænder kan nu tage korte jagtture med halsen frem og ned og hurtigere skridt, eller søge i jorden med små skridt og pauser med næbbet nede. Synlige fluer med flimrende vinger bevæger sig foran jagende ænder. Fluerne er foreløbige visuelle mål, ikke selvstændige dyr med fangstsimulation. Jagten bruger samme begrænsede drivkraft som almindelig gang, en fast kort rute væk fra bassinet og efterfølgende opbremsning. Pasta afbryder aktiviteterne; hannen holder da vagt og spiser ikke pasta. Hastigheder, hyppigheder og varigheder er animationsvalg. Snegle som fødekilde er ejerens formodning og er endnu ikke modelleret.
 
+### Forsigtighed over for kameraet
+
+Ejeren beskriver ænderne som sky over for mennesker. Kameraets position på græsplanet fungerer derfor som betragterens position. Ænderne foretrækker mindst cirka én meters afstand: buff 1,05, han 1,10, brun 1,15 og broget 1,25 sceneenheder, foreløbigt fortolket som meter. Bevægelsen begynder at bremse før grænsen, og tilbagetrækning fortsætter lidt længere ud for at undgå gentagne retningsskift ved samme afstand.
+
+Pasta inde ved kameraet kan friste hunnerne hen til grænsen, hvor de tøver; pasta helt tæt på bliver liggende. Hvis betragteren trækker sig, kan de fortsætte. Et kamera, der kommer tæt på, afbryder spisning, hvile og insektjagt; svømmende ænder søger væk inden for bassinet. Et igangværende hop afsluttes først. Dette er en ønsket afstand med begrænset acceleration, ikke en usynlig væg: hurtige kameraflytninger eller lidt plads ved bassin/hæk kan kortvarigt give mindre afstand. Hannen spiser fortsat ikke pasta.
+
 ## Nye videoer til kalibrering
 
 ### Muskelbaseret bevægelseslæring — forskningsreference
