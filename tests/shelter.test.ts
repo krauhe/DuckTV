@@ -12,7 +12,10 @@ test('ducks walk into the open shelter at night and wake at dawn',()=>{
  }
  assert.equal(sim.shelterDoor.closed,1,'door rolls down once all four sleep inside');
  sim.setNight(false);sim.update(.025);
- assert.ok(sim.ducks.every(d=>d.state!=='sleep'));
+ assert.ok(sim.ducks.every(d=>d.state==='sleep'),'dawn does not wake every duck instantly');
+ for(let i=0;i<120;i++){sim.setNight(false);sim.update(.025);}
+ const sleepers=sim.ducks.filter(d=>d.state==='sleep').length;
+ assert.ok(sleepers>0&&sleepers<4,'individual wake delays survive repeated clock updates');
  for(let i=0;i<800;i++)sim.update(.025);
  assert.equal(sim.shelterDoor.closed,0,'door opens at dawn');
  assert.ok(sim.ducks.some(d=>d.z>SHELTER.front));

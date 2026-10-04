@@ -140,6 +140,9 @@ export interface Food {
 
 interface Intent {
   roosting: boolean;
+  daylightAt?:number;
+  wakeBathAt?:number;
+  activityScale?:number;
   displayAt: number;
   social: ReturnType<typeof perceive>;
   insectEscape?: { started: number; velocity: Vec2 };
@@ -305,7 +308,14 @@ export class Simulation {
     if (Number.isFinite(x) && Number.isFinite(z)) this.viewer = { x, z };
   }
 
-  setNight(night: boolean): void { this.night=night; }
+  setNight(night: boolean): void {
+    if(this.night===night)return;
+    this.night=night;
+    for(const [index,duck] of this.ducks.entries()){
+      const intent=this.intents.get(duck.id)!;
+      intent.daylightAt=night?this.time:this.time+1+index*2.4+this.range(0,2);
+    }
+  }
 
   private tick(dt: number): void {
     this.shelterDoor.update(dt,this.night,this.ducks);
@@ -351,7 +361,7 @@ export class Simulation {
       if (this.comfort(duck, intent)) { this.brake(duck,intent,dt);this.updateExpression(duck, dt); continue; }
       if (this.explore(duck, intent, dt)) { /* Local prey/ground interest takes a short turn. */ }
       else if (duck.kind === 'drake' && !['enter','swim','exit'].includes(duck.state)) {
-        if (!this.foods.some(food=>!food.eaten) && duck.needs.bath > .78) this.beginBath(duck,intent);
+        if (!this.foods.some(food=>!food.eaten) && duck.needs.bath > .78 && this.time>=(intent.wakeBathAt??0)) this.beginBath(duck,intent);
         else this.guard(duck, intent, dt);
       }
       else this.female(duck, intent, dt);
@@ -386,11 +396,15 @@ export class Simulation {
   private shelterBehavior(duck:Duck,intent:Intent,dt:number):boolean{
     if(!this.night){
       if(intent.roosting){
+        if(this.time<(intent.daylightAt??0))return true;
+        intent.exploreAt=this.time+this.range(3,15);intent.wakeBathAt=this.time+this.range(5,22);
+        intent.activityScale=this.range(.8,1.3);
         intent.roosting=false;duck.state=duck.kind==='drake'?'guard':'wander';
-        intent.target={x:duck.x,z:SHELTER.front+.8};intent.timer=3;intent.comfortAt=this.time+12;
+        intent.target={x:duck.x,z:SHELTER.front+.8};intent.timer=this.range(2,6);intent.comfortAt=this.time+this.range(12,32);
       }
       return false;
     }
+    if(!intent.roosting&&this.time<(intent.daylightAt??0))return false;
     if(duck.state==='swim'){intent.swimUntil=this.time;return false;}
     if(duck.state==='exit'||(duck.state==='enter'&&intent.phase==='cross'))return false;
     this.endDisplay();
@@ -405,7 +419,7 @@ export class Simulation {
       this.moveLand(duck,bed,BEHAVIOR.walkSpeed*.65,dt);
     }else if(duck.speed>.02){duck.state='rest';}
     else{
-      if(!intent.comfortUntil)intent.comfortUntil=this.time+3+kinds.indexOf(duck.kind)*.8;
+      if(!intent.comfortUntil)intent.comfortUntil=this.time+this.range(3,8);
       duck.state=this.time<intent.comfortUntil?'preen':'sleep';
     }
     return true;
@@ -478,7 +492,7 @@ export class Simulation {
       duck.state = duck.kind === 'drake' ? 'guard' : 'wander';
       duck.insect = undefined; duck.peck = 0; intent.insectEscape = undefined;
       intent.timer = 0; intent.route = undefined;
-      intent.exploreAt = this.time + BEHAVIOR.exploreCooldown + this.ducks.indexOf(duck) * 2;
+      intent.exploreAt = this.time + BEHAVIOR.exploreCooldown + this.ducks.indexOf(duck) * 2 + this.range(0,6);
     };
     if (active && foodAvailable) { finish(); return false; }
     if(duck.state==='drink'){
@@ -513,10 +527,10 @@ export class Simulation {
       intent.insectEscape = undefined;intent.snapAt=undefined;
       duck.insect = duck.state === 'chase' ? { ...target } : undefined;
       intent.target = target; intent.route = undefined;
-      intent.exploreStarted = this.time; intent.forageStep = -1;
+      intent.exploreStarted = this.time; intent.forageStep = -1;intent.activityScale=this.range(.8,1.3);
     }
     const elapsed = this.time - intent.exploreStarted;
-    if (elapsed >= (duck.state === 'chase' ? BEHAVIOR.chaseSeconds : BEHAVIOR.forageSeconds)) {
+    if (elapsed >= (duck.state === 'chase' ? BEHAVIOR.chaseSeconds : BEHAVIOR.forageSeconds*(intent.activityScale??1))) {
       if(duck.state==='forage'){
         // Individual rinse spot away from the shared bath entrance.
         const angle=-1.05+this.ducks.indexOf(duck)*.7;
@@ -551,7 +565,7 @@ export class Simulation {
       }
       this.moveLand(duck, this.safeLand(insect), BEHAVIOR.chaseSpeed, dt);
     } else {
-      const step = Math.floor(elapsed / 5.5), phase = elapsed % 5.5;
+      const step = Math.floor(elapsed / (5.5*(intent.activityScale??1))), phase = elapsed % (5.5*(intent.activityScale??1));
       if (step !== intent.forageStep) {
         intent.forageStep = step;
         const angle = duck.heading + this.range(-.35, .35);
@@ -746,7 +760,7 @@ export class Simulation {
       return;
     }
 
-    if (duck.needs.bath > .78) {
+    if (duck.needs.bath > .78 && this.time>=(intent.wakeBathAt??0)) {
       this.beginBath(duck,intent);
       return;
     }
@@ -1110,3 +1124,4 @@ export function facesPartner(observer:{x:number;z:number;heading:number},target:
  const angle=Math.atan2(target.x-observer.x,target.z-observer.z)-observer.heading;
  return Math.cos(angle)>.6;
 }
+
