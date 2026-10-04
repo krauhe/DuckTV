@@ -1,0 +1,54 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import * as THREE from 'three';
+import { createDuck } from '../src/duck-model.ts';
+import type { DuckKind, DuckPose } from '../src/types.ts';
+
+test('walking keeps the head steady while the body sways and the attached neck flexes', () => {
+  for (const kind of ['drake', 'buff', 'brown', 'pied'] as DuckKind[]) {
+    for (const upright of [0, 1]) {
+      const model = createDuck(kind);
+      const head = model.group.getObjectByName('duck-head')!;
+      const body = model.group.getObjectByName('duck-torso')!;
+      const neck = model.group.getObjectByName('duck-neck')!;
+      const pose: DuckPose = { speed: .65, time: 0, state: 'wander', look: .15, peck: 0, upright, headTilt: .2, displayDip: 0 };
+      const position = new THREE.Vector3(), rotation = new THREE.Quaternion(), scale = new THREE.Vector3();
+      const firstPosition = new THREE.Vector3(), firstRotation = new THREE.Quaternion();
+      let bodyMin = Infinity, bodyMax = -Infinity, neckMin = Infinity, neckMax = -Infinity;
+      for (let i = 0; i < 720; i++) {
+        pose.time = i / 60;
+        model.group.position.z = pose.time * pose.speed;
+        model.animate(pose);
+        model.group.updateMatrixWorld(true);
+        if (i < 480) continue; // Let the chosen posture settle before measuring steps.
+        head.getWorldPosition(position).sub(model.group.position);
+        head.getWorldQuaternion(rotation);
+        head.getWorldScale(scale);
+        if (i === 480) { firstPosition.copy(position); firstRotation.copy(rotation); }
+        assert.ok(position.distanceTo(firstPosition) < 0.00001, `${kind}: head bobs in ${upright} posture`);
+        assert.ok(rotation.angleTo(firstRotation) < 0.00001, `${kind}: head rotates with footfalls`);
+        assert.ok(Math.abs(scale.x - .8) < 0.00001, 'neck spring must not resize the head');
+        bodyMin = Math.min(bodyMin, body.position.y); bodyMax = Math.max(bodyMax, body.position.y);
+        neckMin = Math.min(neckMin, neck.scale.y); neckMax = Math.max(neckMax, neck.scale.y);
+      }
+      assert.ok(bodyMax - bodyMin > .025, 'body still moves with the feet');
+      assert.ok(neckMax - neckMin > .02, 'neck absorbs the body movement');
+      model.animate({ ...pose, time: pose.time + .016, speed: 0, state: 'rest' });
+      assert.equal(neck.scale.y, 1, 'stopping clears the walking compensation');
+      assert.equal(head.scale.y, 1);
+    }
+  }
+});
+
+test('head stabilization preserves deliberate feeding and courtship bows', () => {
+  const model = createDuck('drake');
+  const head = model.group.getObjectByName('duck-head')!;
+  const pose: DuckPose = { speed: 0, time: 0, state: 'guard', look: 0, peck: 0, upright: 1, headTilt: 0, displayDip: 0 };
+  const point = new THREE.Vector3();
+  const height = () => { model.group.updateMatrixWorld(true); return head.getWorldPosition(point).y; };
+  model.animate(pose); const standing = height();
+  model.animate({ ...pose, time: .016, state: 'eat', peck: 1 });
+  assert.ok(standing - height() > .5, 'feeding still reaches downward');
+  for (let i = 1; i < 120; i++) model.animate({ ...pose, time: i / 60, displayDip: 1 });
+  assert.ok(standing - height() > .1, 'courtship bow remains visible');
+});
