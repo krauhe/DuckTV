@@ -407,6 +407,9 @@ export function createDuck(kind: DuckKind): {
   const steadyHeadRotation = new THREE.Quaternion();
   const neckCorrection = new THREE.Quaternion();
   const parentRotation = new THREE.Quaternion();
+  const sleepingHeadRotation = new THREE.Quaternion().setFromEuler(
+    new THREE.Euler(0, Math.PI + (kind === 'brown' || kind === 'drake' ? -.3 : .3), 0),
+  );
 
   function animate(pose: DuckPose): void {
     const { state, time } = pose;
@@ -472,6 +475,11 @@ export function createDuck(kind: DuckKind): {
     head.rotation.x=THREE.MathUtils.lerp(head.rotation.x,-2.25-stroke,comfortBlend);
     head.rotation.y=THREE.MathUtils.lerp(head.rotation.y,side*.25,comfortBlend);
     head.rotation.z=THREE.MathUtils.lerp(head.rotation.z,side*.2,comfortBlend);
+    // Keep the sleeping head upright, with the bill pointing back along the wing.
+    // Its orientation must compensate for the folded neck, not inherit its pitch.
+    parentRotation.copy(torso.quaternion).multiply(neckPivot.quaternion).invert();
+    parentRotation.multiply(sleepingHeadRotation);
+    head.quaternion.slerp(parentRotation,sleepBlend);
     eyes.forEach(eye=>eye.scale.y=1-sleepBlend*.94);
     eyeGlints.forEach(glint=>glint.visible=sleepBlend<.5);
     if (moving || Math.abs(pitch)+Math.abs(roll)+Math.abs(headLag)+Math.abs(headSide)>.00001) {

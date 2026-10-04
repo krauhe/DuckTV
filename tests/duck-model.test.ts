@@ -22,7 +22,8 @@ test('acceleration bends the body and neck gradually and settles after the force
 });
 
 test('sleep folds the feet and tucks the head back, then releases the pose when walking',()=>{
- const model=createDuck('pied');
+ for(const kind of ['drake','buff','brown','pied'] as DuckKind[]){
+ const model=createDuck(kind);
  const head=model.group.getObjectByName('duck-head')!;
  const leg=model.group.getObjectByName('duck-left-leg')!;
  const pose:DuckPose={state:'sleep',speed:0,time:0,look:0,peck:0,upright:0,headTilt:0,displayDip:0};
@@ -31,11 +32,17 @@ test('sleep folds the feet and tucks the head back, then releases the pose when 
  const point=head.getWorldPosition(new THREE.Vector3());
  assert.ok(point.z<-.15,'head rests towards the back of the body');
  assert.ok(point.y<.55,'sleeping head stays low');
+ const rotation=head.getWorldQuaternion(new THREE.Quaternion());
+ const billDirection=new THREE.Vector3(0,0,1).applyQuaternion(rotation);
+ const headUp=new THREE.Vector3(0,1,0).applyQuaternion(rotation);
+ assert.ok(Math.abs(billDirection.y)<.02 && billDirection.z<-.9,'sleeping bill points level towards the wing');
+ assert.ok(headUp.y>.98,'head stays upright despite the folded neck');
  assert.equal(leg.visible,false);
  for(let i=181;i<=360;i++)model.animate({...pose,time:i/60,state:'wander',speed:.5,upright:1});
  model.group.updateMatrixWorld(true);
  assert.equal(leg.visible,true);
  assert.ok(head.getWorldPosition(new THREE.Vector3()).y>.9);
+ }
 });
 
 test('walking keeps the head steady while the body sways and the attached neck flexes', () => {
