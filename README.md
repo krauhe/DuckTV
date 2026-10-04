@@ -344,3 +344,6 @@ Hals–hoved-samling: Halsens øverste ring fæstnes inde i kraniets fjerflade o
 Fødesøgning: Næbspidsen søger ned til græssets højde med små lokale søgebevægelser. Hovedet holdes selvstændigt skråt nedad, mens halsen bøjer mod hovedets placering, frem for at hele hovedet følger et stift halsbuk. Drikning og parringsinvitationer har separate bevægelser.
 
 Ved fødesøgning arbejder anden nu cirka fem sekunder omkring samme sted. Næbspidsen går lidt under græsoverfladen og laver små bevægelser i hullet. Små mørke jordhuller med jordkant dannes dér, hvor næbbet rammer, og vokser ved fortsat roden. Hullerne er visuelle overflademærker, ikke udgravet terræn; højst 64 bevares, og gamle mærker forsvinder gradvist efter to minutter.
+
+
+Jordhuller er korrigeret til næb-/fingerstørrelse (højst cirka 3 × 4 cm inklusive jordkant i scenens skala). En fejl lod tidligere fade-faktoren forstørre nye huller. De beholder nu størrelsen og bliver gradvist gennemsigtige fra 15 til 75 sekunder efter sidste roden.

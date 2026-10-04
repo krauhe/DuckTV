@@ -13,3 +13,15 @@ test('probing works the same hole, skips raised surfaces and bounds long-running
  assert.equal(scene.children.length,64);
  holes.update(300);assert.ok(scene.children.every(h=>!h.visible));
 });
+
+test('finger-sized holes retain their size and fade smoothly instead of growing',()=>{
+ const scene=new THREE.Scene(),holes=createForageHoles(scene);
+ holes.probe(new THREE.Vector3(0,-.01,0),0,10);
+ const hole=scene.children[0],size=hole.scale.clone();
+ assert.ok(size.x*2*1.15<=.033 && size.z*2*1.15<=.042);
+ const material=(hole.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial;
+ holes.update(1);assert.equal(material.opacity,1);assert.ok(hole.scale.equals(size));
+ holes.update(45);assert.equal(material.opacity,.5);assert.ok(hole.scale.equals(size));
+ holes.update(75);assert.equal(material.opacity,0);assert.equal(hole.visible,false);
+ holes.probe(new THREE.Vector3(0,-.01,0),76,.1);assert.equal(material.opacity,1);assert.equal(hole.visible,true);
+});
