@@ -32,7 +32,7 @@ pnpm preview
 
 ## Status og afgrænsning
 
-Dette er en første kørbar prototype. Modellerne er fortolkninger af referencerne, ikke færdige Blender-modeller eller præcise rekonstruktioner. Animationerne er kodestyrede. Fuld fjerpudsning, realistisk fodkontakt, avanceret badning/sprøjt og en egentlig Windows-pauseskærm er senere trin. Vejret kan vælges manuelt eller følge Gistrup; realtidsvalget anvender vejrmodeldata, ikke en måler i haven. Aktuel dag/nat understøttes, mens præcis solbane og sne ikke er implementeret.
+Dette er en første kørbar prototype. Modellerne er fortolkninger af referencerne, ikke færdige Blender-modeller eller præcise rekonstruktioner. Animationerne er kodestyrede. Mere varieret fjerpudsning, realistisk fodkontakt, avanceret badning/sprøjt og en egentlig Windows-pauseskærm er senere trin. Vejret kan vælges manuelt eller følge Gistrup; realtidsvalget anvender vejrmodeldata, ikke en måler i haven. Aktuel dag/nat understøttes, mens præcis solbane og sne ikke er implementeret.
 
 Hver besøgende kører sin egen simulation. Der er ingen fælles server eller login. Lyden er endnu ikke implementeret.
 
@@ -46,6 +46,10 @@ Kropsformen følger også stillingen: oprejste ænder får et smallere, mere lan
 
 Prototypen har nu glidende stillingsskift, hovedhældning mod betragteren og korte, gensidige kurmageriforløb. Hannens duk gentages hvert tredje sekund; en hun kan svare med forsinkelse eller undlade at svare. Fodring har forrang og afbryder forløbet. Selve parringen er endnu ikke animeret. Svarprocent, forsinkelse, hyppighed og forløbets længde er foreløbige designværdier i `BEHAVIOR`, ikke målte eller biologisk validerede tal. Video kan bruges til at justere dem.
 
+### Fjerpudsning og søvn
+
+Efter ejerens beskrivelse tager alle fire ænder nu individuelle pauser med korte pudsestrøg mod vingen og senere en lur: kroppen sænkes, benene foldes ind, øjnene lukkes, og hovedet lægges tilbage med næbbet mod vingen. Mindst to ænder forbliver aktive. Et pastakast afbryder pauserne, og hannen genoptager sin vagtrolle. De første pudsepauser kan optræde efter cirka 35 sekunder; søvn følger i senere pauser. Tiderne, fordelingen og bevægelserne er foreløbige animationsvalg. Sovestillingen er ikke sikkert observeret i de hidtil gennemgåede klip.
+
 ## Nye videoer til kalibrering
 
 ### Bevægelsesreferencer: løb og fødesøgning
@@ -57,7 +61,7 @@ Ejerens to Google-videolinks peger på nedenstående YouTube-videoer. Udvalgte t
 | [Loopeenden die rennen ! — Fred Graspol](https://www.youtube.com/watch?v=YNikukqaQnI), 1:02 | Omkring 0:13, inklusive successive billeder; desuden 0:18, 0:23 og 0:28 | En lys and bevæger sig mod højre med skiftevis fremført og støttende fod. Nogle ænder hælder fremad, mens andre er mere oprejste. Flokken har forskellig placering og skridtfase. | Tydelig forskel mellem rolig gang og hurtig fremdrift. Knyt skridtlængde og frekvens til hastigheden; giv foden en støttefase og en løftet fremføringsfase. Undgå synkron gang i flokken. |
 | [Indiske løbeænder – sneglespiser — Jon Bertelsen](https://www.youtube.com/watch?v=LW8hAfoDwXo), 1:59 | 0:13, 0:18 og 0:23–0:24, sidstnævnte med successive billeder | Ænderne sænker og strækker halsen mod underlaget. Omkring 0:23–0:24 løfter den forreste brune and hovedet fra jorden og flytter en fod, mens den hvide fortsat søger lavt. En anden and står oprejst i baggrunden. | Små skridt og pauser under fødesøgning, med selvstændige hals- og næbbevægelser. Lad stillingen afhænge af aktivitet frem for kun et periodisk skift. |
 
-Prioritet for bevægelsesarbejdet: (1) fodkontakt og hastighedstilpassede skridt, (2) langsom fødesøgning med halsen frem/ned, (3) tydelige overgange mellem pause, gang og hurtig bevægelse. Den allerede implementerede hovedstabilisering under gang bevares, mens bevidste søgebevægelser stadig kan flytte hovedet. Videoerne er kvalitative referencer; de bruges ikke som belæg for et helt ubevægeligt hoved, præcise hastigheder eller bestemt køn/vagtrolle. Ovenstående nye punkter er dokumenterede forslag, endnu ikke implementerede ændringer.
+Prioritet for bevægelsesarbejdet: (1) fodkontakt og hastighedstilpassede skridt, (2) langsom fødesøgning med halsen frem/ned, (3) tydelige overgange mellem pause, gang og hurtig bevægelse. Den allerede implementerede hovedstabilisering under gang bevares, mens bevidste søgebevægelser stadig kan flytte hovedet. Videoerne er kvalitative referencer; de bruges ikke som belæg for et helt ubevægeligt hoved, præcise hastigheder eller bestemt køn/vagtrolle. Ovenstående punkter om skridt og fødesøgning er dokumenterede forslag, endnu ikke implementerede ændringer.
 
 ### Videoreference: løbeænder i havecenter
 
@@ -71,7 +75,7 @@ Prioritet for bevægelsesarbejdet: (1) fodkontakt og hastighedstilpassede skridt
 | 0:41–0:46 | Ænder ses tæt ved vand; ved 0:46 står to med næbbet ned mod vandoverfladen. | En separat drikkeadfærd ved kanten, så et vandbesøg ikke altid kræver svømning. Den fulde bevægelse skal kalibreres med et sammenhængende forløb. |
 | 1:06 | Flere ænder ligger tæt samlet på jorden med forskellige hovedstillinger. | Små fælles hvileperioder, hvor ikke alle laver samme bevægelse samtidig. |
 
-Disse er inspirationspunkter og forslag til næste iteration, ikke allerede implementerede funktioner. Prioritér fødesøgning og liggende hvile, derefter drikning ved bassinkanten. De stikprøvevis gennemgåede billeder bruges ikke til at måle gangfrekvens, bestemme køn eller bekræfte kurmageriets tresekundersrytme. Den rytme stammer fortsat fra ejerens egne observationer.
+Fjerpudsning og en individuel liggende sovepause er siden tilføjet ud fra ejerens beskrivelse. Fælles hvileperioder, fødesøgning og drikning ved bassinkanten er fortsat forslag til næste iteration. De stikprøvevis gennemgåede billeder bruges ikke til at måle gangfrekvens, bestemme køn eller bekræfte kurmageriets tresekundersrytme. Den rytme stammer fortsat fra ejerens egne observationer.
 
 Optag gerne et sammenhængende forløb før, under og efter et kast. Hele flokken og fødderne bør være synlige. Notér hvem der er hvem. Relevant: tøvetid, små stop, afstand til andre, hvem der følger hvem, hannens vagtposition, ind-/udstigning og kropsholdning i bassinet. Justér værdierne i `BEHAVIOR` og animationerne efter observerede forløb; de nuværende værdier er designvalg, ikke målte dyreadfærdsdata.
 

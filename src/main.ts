@@ -114,7 +114,7 @@ function frame(now:number){
  }
  for(const [id,mesh] of foods)if(!liveIds.has(id)){scene.remove(mesh);foods.delete(id);foodRotations.delete(id)}
  statusTick+=dt;
- if(statusTick>.4){statusTick=0;const eating=sim.ducks.some(d=>d.state==='eat'),approach=sim.ducks.some(d=>d.state==='notice'||d.state==='approach'),swimming=sim.ducks.some(d=>d.state==='swim');$('flock-status').textContent=sim.courtship?(sim.courtship.mutualDisplay?'Hunnen svarer på hannens duk':'Hannen gør kur med rytmiske duk'):eating?'Hunnerne spiser · hannen holder vagt':approach?'Nysgerrighed kræver lidt mod':swimming?'En tur i det blå bassin':'Flokken udforsker haven';if(now>toastUntil&&now-lastCast>6000)$('toast').textContent='De tager sig god tid. Lad dem komme til dig.'}
+ if(statusTick>.4){statusTick=0;const eating=sim.ducks.some(d=>d.state==='eat'),approach=sim.ducks.some(d=>d.state==='notice'||d.state==='approach'),swimming=sim.ducks.some(d=>d.state==='swim');$('flock-status').textContent=sim.courtship?(sim.courtship.mutualDisplay?'Hunnen svarer på hannens duk':'Hannen gør kur med rytmiske duk'):eating?'Hunnerne spiser · hannen holder vagt':approach?'Nysgerrighed kræver lidt mod':swimming?'En tur i det blå bassin':sim.ducks.some(d=>d.state==='preen')?'En stille stund med fjerpudsning':sim.ducks.some(d=>d.state==='sleep')?'En lille lur med hovedet ved vingen':'Flokken udforsker haven';if(now>toastUntil&&now-lastCast>6000)$('toast').textContent='De tager sig god tid. Lad dem komme til dig.'}
  controls.update();constrainGardenCamera(camera,controls.target);renderer.render(scene,camera);
 }
 renderer.setAnimationLoop(frame);

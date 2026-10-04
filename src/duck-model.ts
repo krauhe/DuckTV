@@ -348,13 +348,16 @@ export function createDuck(kind: DuckKind): {
   const eyeRingMat = material(p.eyeRing);
   const eyeMat = material('#181a17', .24);
   const glintMat = new THREE.MeshBasicMaterial({ color: '#f9f4e5' });
+  const eyes: THREE.Group[]=[];
+  const eyeGlints: THREE.Mesh[]=[];
   for (const side of [-1, 1]) {
-    ellipsoid(head, eyeRingMat, [side * .074, .087, .065],
+    const eye=new THREE.Group();eye.position.set(side*.074,.087,.065);head.add(eye);eyes.push(eye);
+    ellipsoid(eye, eyeRingMat, [0, 0, 0],
       [.012, .025, .026]);
-    ellipsoid(head, eyeMat, [side * .081, .088, .068],
+    ellipsoid(eye, eyeMat, [side * .007, .001, .003],
       [.008, .016, .017]);
-    ellipsoid(head, glintMat, [side * .087, .096, .076],
-      [.0025, .004, .004]);
+    eyeGlints.push(ellipsoid(eye, glintMat, [side * .013, .009, .011],
+      [.0025, .004, .004]));
   }
   if (kind === 'pied') {
     ellipsoid(neckPivot, material('#c48668'), [0, .255, .078],
@@ -387,6 +390,8 @@ export function createDuck(kind: DuckKind): {
   let uprightBlend = 1;
   let tiltBlend = 0;
   let displayBlend = 0;
+  let preenBlend = 0;
+  let sleepBlend = 0;
   // Solve the neck from its body attachment to the intended steady head pose.
   // Reused scratch objects avoid allocations on every animation frame.
   const steadyHead = new THREE.Vector3();
@@ -403,6 +408,8 @@ export function createDuck(kind: DuckKind): {
     previousTime = time;
     // Smooth the posture and expression signals independently of the walking gait.
     const postureResponse = 1 - Math.exp(-dt * 6);
+    preenBlend += ((state==='preen'?1:0)-preenBlend)*postureResponse;
+    sleepBlend += ((state==='sleep'?1:0)-sleepBlend)*postureResponse;
     uprightBlend += (THREE.MathUtils.clamp(pose.upright, 0, 1) -
       uprightBlend) * postureResponse;
     tiltBlend += (THREE.MathUtils.clamp(pose.headTilt, -.48, .48) -
@@ -428,7 +435,7 @@ export function createDuck(kind: DuckKind): {
     bodyShape.scale.set(1 - extension * .28, .94 + extension * .27, 1.06 - extension * .32);
     neckPivot.position.set(0, .302 * bodyShape.scale.y, .143 * bodyShape.scale.z);
     torso.position.y = .604 + extension * .035 - swimBlend * .38 - peckAmount * .17 -
-      low * .14 - display * .045 + (moving ? 0 : Math.sin(time * 1.6) * .004);
+      low * .14 - display * .045 - sleepBlend*.18 + (moving ? 0 : Math.sin(time * 1.6) * .004);
     torso.rotation.x = low * .30 + display * .065 +
       (moving ? -.025 :
         -swimBlend * .035 + (state === 'rest' ? .022 : 0));
@@ -441,6 +448,19 @@ export function createDuck(kind: DuckKind): {
     head.rotation.x = peckAmount * -.22 - low * .75 - display * .14;
     head.rotation.y = pose.look * .12;
     head.rotation.z = tiltBlend * .74 * (1 - peckAmount);
+    // Fold the neck back towards a wing. Short strokes comb the feathers;
+    // sleeping holds the tucked pose with only the body's quiet breathing.
+    const comfortBlend=Math.min(1,preenBlend+sleepBlend);
+    const side=kind==='brown'||kind==='drake'?-1:1;
+    const stroke=preenBlend*Math.sin(time*5.5)*.13;
+    neckPivot.rotation.x=THREE.MathUtils.lerp(neckPivot.rotation.x,-1.73+stroke,comfortBlend);
+    neckPivot.rotation.y=THREE.MathUtils.lerp(neckPivot.rotation.y,side*.38,comfortBlend);
+    neckPivot.rotation.z*=1-comfortBlend;
+    head.rotation.x=THREE.MathUtils.lerp(head.rotation.x,-2.25-stroke,comfortBlend);
+    head.rotation.y=THREE.MathUtils.lerp(head.rotation.y,side*.25,comfortBlend);
+    head.rotation.z=THREE.MathUtils.lerp(head.rotation.z,side*.2,comfortBlend);
+    eyes.forEach(eye=>eye.scale.y=1-sleepBlend*.94);
+    eyeGlints.forEach(glint=>glint.visible=sleepBlend<.5);
     if (moving) {
       // Capture the intentional posture/look/tilt before adding the footfall sway.
       torso.updateMatrix();
@@ -466,9 +486,10 @@ export function createDuck(kind: DuckKind): {
       head.quaternion.copy(parentRotation).multiply(steadyHeadRotation);
     }
     for (let i = 0; i < 2; i++) {
-      legs[i].visible = swimBlend < .99;
-      legs[i].position.y = .299 - .27 * swimBlend;
-      legs[i].scale.y = Math.max(.01, 1 - swimBlend);
+      const folded=Math.max(swimBlend,sleepBlend);
+      legs[i].visible = folded < .99;
+      legs[i].position.y = .299 - .27 * folded;
+      legs[i].scale.y = Math.max(.01, 1 - folded);
       const swing = Math.sin(phase + i * Math.PI) * stride;
       legs[i].rotation.x = swing * .47;
       feet[i].rotation.x = -legs[i].rotation.x * .78 +

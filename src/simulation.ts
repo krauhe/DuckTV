@@ -35,6 +35,11 @@ export const BEHAVIOR = {
   restMin: 2.2,
   restMax: 4.7,
   restChance: 0.24,
+  // Provisional comfort bouts based on the owner's description, not measured timings.
+  comfortFirstAt: 35,
+  comfortCooldown: 48,
+  preenSeconds: 7,
+  sleepSeconds: 14,
   pondVisitMin: 25,
   pondVisitMax: 48,
   swimMin: 6,
@@ -103,6 +108,9 @@ export interface Food {
 }
 
 interface Intent {
+  comfortAt: number;
+  comfortUntil: number;
+  comfortCount: number;
   headingTarget: number;
   guardMoving: boolean;
   idleFor: number;
@@ -182,6 +190,8 @@ export class Simulation {
         speed: 0, look: 0, peck: 0, upright: 1, headTilt: 0, displayDip: 0,
       };
       this.intents.set(duck.id, {
+        comfortAt: BEHAVIOR.comfortFirstAt + index * 9,
+        comfortUntil: 0, comfortCount: 0,
         headingTarget: start.heading, guardMoving: false, idleFor: 0,
         target: { x: start.x, z: start.z }, timer: 0, noticeUntil: 0,
         peckTimer: 0, approachTravel: 0, approachPaused: false, pauseUntil: 0,
@@ -255,6 +265,7 @@ export class Simulation {
         this.updateExpression(duck, dt);
         continue;
       }
+      if (this.comfort(duck, intent)) { this.updateExpression(duck, dt); continue; }
       if (duck.kind === 'drake') this.guard(duck, intent, dt);
       else this.female(duck, intent, dt);
       this.updateExpression(duck, dt);
@@ -277,6 +288,29 @@ export class Simulation {
     for (const duck of this.ducks) duck.displayDip = 0;
   }
 
+  private comfort(duck: Duck, intent: Intent): boolean {
+    const active=duck.state==='preen'||duck.state==='sleep';
+    const foodAvailable=this.foods.some(food=>!food.eaten);
+    if(active){
+      if(foodAvailable||this.time>=intent.comfortUntil){
+        duck.state=duck.kind==='drake'?'guard':'wander';
+        intent.timer=0;
+        intent.comfortAt=this.time+BEHAVIOR.comfortCooldown+this.ducks.indexOf(duck)*4;
+        return false;
+      }
+      duck.peck=0;duck.look=0;
+      return true;
+    }
+    if(foodAvailable||this.courtship||this.time<intent.comfortAt||
+      !['wander','rest','guard'].includes(duck.state))return false;
+    // Stagger individual bouts and leave at least two ducks awake and active.
+    if(this.ducks.filter(other=>other.state==='sleep'||other.state==='preen').length>=2)return false;
+    duck.state=intent.comfortCount++%2===0?'preen':'sleep';
+    intent.comfortUntil=this.time+(duck.state==='preen'?BEHAVIOR.preenSeconds:BEHAVIOR.sleepSeconds);
+    duck.peck=0;duck.look=0;
+    return true;
+  }
+
   private updateDisplay(): void {
     if (this.foods.some(food => !food.eaten)) { this.endDisplay(); return; }
     if (this.courtship) {
@@ -287,6 +321,7 @@ export class Simulation {
     }
     if (this.time < this.nextDisplayAt) return;
     const drake = this.ducks[0];
+    if(drake.state==='preen'||drake.state==='sleep')return;
     const candidates = this.ducks.filter(duck => duck.kind !== 'drake' && ['rest', 'wander'].includes(duck.state) && distance(duck, drake) < BEHAVIOR.displayRange);
     if (!candidates.length) { this.nextDisplayAt = this.time + 4; return; }
     const partner = candidates[Math.min(candidates.length - 1, Math.floor(this.random() * candidates.length))];
@@ -301,10 +336,11 @@ export class Simulation {
     const displaying = this.courtship && (duck.kind === 'drake' || duck.id === this.courtship.partnerId);
     const posturePhase = (this.time + index * 5.2) % 21;
     const relaxed = posturePhase > 11 && posturePhase < 17;
-    const uprightTarget = duck.state === 'swim' ? 0 : inWater || displaying || duck.state === 'notice' ? 1 : relaxed ? 0.12 : 1;
+    const comfortable=duck.state==='preen'||duck.state==='sleep';
+    const uprightTarget = duck.state === 'swim' || comfortable ? 0 : inWater || displaying || duck.state === 'notice' ? 1 : relaxed ? 0.12 : 1;
     duck.upright += (uprightTarget - duck.upright) * (1 - Math.exp(-dt * 2.5));
     const curiosityPhase = (this.time + index * 3.7) % 13;
-    const curious = !inWater && !displaying && duck.state !== 'eat' && (intent.idleFor > .6 || duck.state === 'notice') && curiosityPhase < 2.6;
+    const curious = !comfortable && !inWater && !displaying && duck.state !== 'eat' && (intent.idleFor > .6 || duck.state === 'notice') && curiosityPhase < 2.6;
     const tiltTarget = curious ? Math.sin(Math.PI * curiosityPhase / 2.6) * (index % 2 ? -.35 : .35) : 0;
     duck.headTilt += (tiltTarget - duck.headTilt) * (1 - Math.exp(-dt * 7));
     if (curious && duck.state !== 'notice') this.face(duck, this.viewer);
@@ -648,10 +684,14 @@ export class Simulation {
           const nx = dist > 0.0001 ? dx / dist : (i % 2 ? 1 : -1);
           const nz = dist > 0.0001 ? dz / dist : 0;
           const shift = (BEHAVIOR.duckSpacing - dist) * 0.5;
-          a.x += nx * shift;
-          a.z += nz * shift;
-          b.x -= nx * shift;
-          b.z -= nz * shift;
+          const aStill=a.state==='preen'||a.state==='sleep';
+          const bStill=b.state==='preen'||b.state==='sleep';
+          if(aStill&&bStill)continue;
+          const aWeight=aStill?0:bStill?2:1,bWeight=bStill?0:aStill?2:1;
+          a.x += nx * shift * aWeight;
+          a.z += nz * shift * aWeight;
+          b.x -= nx * shift * bWeight;
+          b.z -= nz * shift * bWeight;
           if (!aWater) {
             Object.assign(a, this.safeLand(a));
             Object.assign(b, this.safeLand(b));

@@ -4,6 +4,23 @@ import * as THREE from 'three';
 import { createDuck } from '../src/duck-model.ts';
 import type { DuckKind, DuckPose } from '../src/types.ts';
 
+test('sleep folds the feet and tucks the head back, then releases the pose when walking',()=>{
+ const model=createDuck('pied');
+ const head=model.group.getObjectByName('duck-head')!;
+ const leg=model.group.getObjectByName('duck-left-leg')!;
+ const pose:DuckPose={state:'sleep',speed:0,time:0,look:0,peck:0,upright:0,headTilt:0,displayDip:0};
+ for(let i=1;i<=180;i++)model.animate({...pose,time:i/60});
+ model.group.updateMatrixWorld(true);
+ const point=head.getWorldPosition(new THREE.Vector3());
+ assert.ok(point.z<-.15,'head rests towards the back of the body');
+ assert.ok(point.y<.55,'sleeping head stays low');
+ assert.equal(leg.visible,false);
+ for(let i=181;i<=360;i++)model.animate({...pose,time:i/60,state:'wander',speed:.5,upright:1});
+ model.group.updateMatrixWorld(true);
+ assert.equal(leg.visible,true);
+ assert.ok(head.getWorldPosition(new THREE.Vector3()).y>.9);
+});
+
 test('walking keeps the head steady while the body sways and the attached neck flexes', () => {
   for (const kind of ['drake', 'buff', 'brown', 'pied'] as DuckKind[]) {
     for (const upright of [0, 1]) {

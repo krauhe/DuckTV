@@ -15,6 +15,29 @@ function advance(sim: Simulation, seconds: number): void {
   for (let remaining = seconds; remaining > 0; remaining -= 0.1) sim.update(Math.min(remaining, 0.1));
 }
 
+test('all ducks preen and sleep individually; food wakes them and restores the guard',()=>{
+ const sim=new Simulation(seeded(18));
+ const preened=new Set<string>(),slept=new Set<string>();
+ for(let i=0;i<6000;i++){
+  sim.update(.05);
+  assert.ok(sim.ducks.filter(d=>d.state==='sleep'||d.state==='preen').length<=2);
+  for(const d of sim.ducks){
+   if(d.state==='preen')preened.add(d.id);
+   if(d.state==='sleep')slept.add(d.id);
+   if(d.state==='sleep'||d.state==='preen'){assert.equal(d.speed,0);assert.equal(d.peck,0);assert.equal(d.y,0)}
+  }
+ }
+ assert.equal(preened.size,4);assert.equal(slept.size,4);
+ for(const state of ['preen','sleep']){
+  const awake=new Simulation(seeded(18));
+  for(let i=0;i<6000&&!awake.ducks.some(d=>d.state===state);i++)awake.update(.05);
+  assert.ok(awake.ducks.some(d=>d.state===state));
+  assert.equal(awake.castFood(-1,1.5),true);awake.update(.05);
+  assert.ok(awake.ducks.every(d=>d.state!=='sleep'&&d.state!=='preen'));
+  assert.equal(awake.ducks[0].state,'guard');assert.equal(awake.ducks[0].peck,0);
+ }
+});
+
 test('casts land in the garden, reject the pond, and respect cooldown and cap', () => {
   const sim = new Simulation(seeded());
   assert.equal(sim.castFood(POND.x, POND.z), false);
