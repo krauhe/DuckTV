@@ -94,3 +94,20 @@ test('neck terminal ring stays enclosed by the actual skull through turns and ac
   (skull.material as THREE.Material).dispose();skull.material=original;
  }
 });
+
+
+test('feeding holds the bill at the grass with an independently downward-facing head',()=>{
+ for(const kind of ['drake','buff','brown','pied'] as const){
+  const model=createDuck(kind);model.group.position.set(1,.12,2);model.group.rotation.y=.7;
+  const head=model.group.getObjectByName('duck-head')!;
+  for(let i=1;i<=240;i++){
+   model.animate({state:'forage',time:i/60,speed:0,upright:0,look:0,peck:.7+.15*Math.sin(i/20),headTilt:0,displayDip:0,groundHeight:()=>.12});
+   if(i<180)continue;
+   model.group.updateMatrixWorld(true);
+   const tip=head.localToWorld(new THREE.Vector3(0,.036,.30));
+   assert.ok(tip.y>=.12 && tip.y<.16,`bill must reach grass: ${tip.y}`);
+   const forward=new THREE.Vector3(0,0,1).applyQuaternion(head.getWorldQuaternion(new THREE.Quaternion()));
+   assert.ok(forward.y<-.7 && forward.y>-.9,'bill aims down without tumbling over with the neck');
+  }
+ }
+});

@@ -426,7 +426,9 @@ export function createDuck(kind: DuckKind): {
   let preenBlend = 0;
   let sleepBlend = 0;
   let jumpBlend=0;
-  let chaseBlend=0;
+  let chaseBlend=0,feedingBlend=0;
+  const feedingTip=new THREE.Vector3(),feedingHead=new THREE.Vector3(),feedingOffset=new THREE.Vector3();
+  const feedingRotation=new THREE.Quaternion(),feedingParent=new THREE.Matrix4();
   let headLook=0,neckLook=0;
   const gait = new DuckGait();
   const bodyPitch=new Spring(0,1.4,100,20),bodyRoll=new Spring(0,1.4,100,20);
@@ -474,6 +476,7 @@ export function createDuck(kind: DuckKind): {
     // Smooth the posture and expression signals independently of the walking gait.
     const postureResponse = 1 - Math.exp(-dt * 6);
     chaseBlend += ((state==='chase'?1:0)-chaseBlend)*postureResponse;
+    feedingBlend+=(((state==='forage'||state==='eat')?1:0)-feedingBlend)*postureResponse;
     const jump=pose.jumpProgress??-1,airborne=jump>=0;
     jumpBlend+=((airborne?1:0)-jumpBlend)*(1-Math.exp(-dt*25));
     const crouch=pose.crouch??0,landing=pose.landing??0;
@@ -603,6 +606,27 @@ export function createDuck(kind: DuckKind): {
       neckPivot.scale.setScalar(spring);
       // The neck flexes; the head keeps its size and intended orientation.
       head.scale.setScalar(1 / spring);
+      parentRotation.copy(torso.quaternion).multiply(neckPivot.quaternion).invert();
+      head.quaternion.copy(parentRotation).multiply(steadyHeadRotation);
+    }
+    // Ground feeding targets the bill, not a rigid rotation of the whole neck.
+    // Keep the skull angled down independently while the flexible skin reaches it.
+    const probe=feedingBlend*THREE.MathUtils.smoothstep(peckAmount,.08,.60);
+    if(probe>0.0001 && !pose.recordedBody){
+      torso.updateMatrix();neckPivot.updateMatrix();
+      feedingParent.multiplyMatrices(torso.matrix,neckPivot.matrix);
+      feedingHead.copy(head.position).applyMatrix4(feedingParent);
+      steadyHeadRotation.copy(torso.quaternion).multiply(neckPivot.quaternion).multiply(head.quaternion);
+      feedingRotation.setFromEuler(new THREE.Euler(.95+Math.sin(time*9)*.035,Math.sin(time*3.1)*.08,0,'YXZ'));
+      feedingTip.set(Math.sin(time*3.1)*.018,0,.72);
+      group.updateMatrixWorld(true);
+      group.localToWorld(feedingTip);
+      feedingTip.y=(pose.groundHeight?.(feedingTip.x,feedingTip.z)??rootPosition.y)+.008+.005*(1+Math.sin(time*9));
+      group.worldToLocal(feedingTip);
+      feedingOffset.set(0,.036,.30).applyQuaternion(feedingRotation);
+      feedingHead.lerp(feedingTip.sub(feedingOffset),probe);
+      head.position.copy(feedingHead).applyMatrix4(feedingParent.invert());
+      steadyHeadRotation.slerp(feedingRotation,probe);
       parentRotation.copy(torso.quaternion).multiply(neckPivot.quaternion).invert();
       head.quaternion.copy(parentRotation).multiply(steadyHeadRotation);
     }
