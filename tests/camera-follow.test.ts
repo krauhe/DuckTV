@@ -35,3 +35,14 @@ test('automatic following stays slow, inside the hedge and clear of every duck',
  }
  assert.ok(camera.position.distanceTo(start)>.3,'camera actually follows the moving flock');
 });
+
+
+test('untouched screens start following immediately, including after losing focus',()=>{
+ const follow=new CameraFollow(),camera=new PerspectiveCamera(),target=new Vector3(0,.65,0);
+ camera.position.set(0,1.65,3.8);const ducks=[{x:2,z:0}];
+ follow.release(0);
+ assert.equal(follow.update(.025,.025,camera,target,ducks),true);
+ follow.manual(1,true);follow.release(2);
+ assert.equal(follow.update(.025,3,camera,target,ducks),false);
+ assert.equal(follow.update(.025,23,camera,target,ducks),true);
+});

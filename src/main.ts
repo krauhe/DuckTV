@@ -83,19 +83,22 @@ function moveCameraWithKeys(dt:number,now:number){
  camera.position.x+=x;camera.position.z+=z;controls.target.x+=x;controls.target.z+=z;
 }
 const cameraFollow=new CameraFollow();
-cameraFollow.manual(performance.now()/1000);
 controls.addEventListener('start',()=>cameraFollow.manual(performance.now()/1000,true));
 controls.addEventListener('end',()=>cameraFollow.manual(performance.now()/1000));
-addEventListener('blur',()=>cameraFollow.manual(performance.now()/1000));
+addEventListener('blur',()=>cameraFollow.release(performance.now()/1000));
 canvas.addEventListener('pointercancel',()=>cameraFollow.manual(performance.now()/1000));
 controls.enableDamping=true;controls.dampingFactor=.055;
+canvas.addEventListener('pointerdown',e=>{
+ const touch=e.pointerType==='touch';
+ controls.panSpeed=touch?1.3:1;controls.dampingFactor=touch?.085:.055;
+});
 controls.minDistance=1.6;controls.maxDistance=9;
 controls.minPolarAngle=1.15;controls.maxPolarAngle=Math.PI*.48;
 controls.enablePan=true;
 controls.touches={ONE:THREE.TOUCH.ROTATE,TWO:THREE.TOUCH.DOLLY_PAN};
 controls.screenSpacePanning=false;
 controls.mouseButtons={LEFT:THREE.MOUSE.ROTATE,MIDDLE:THREE.MOUSE.DOLLY,RIGHT:THREE.MOUSE.PAN};
-function resetView(){cameraFollow.manual(performance.now()/1000);camera.position.set(.2,1.65,3.8);controls.target.set(.1,.65,-.3);controls.update();constrainGardenCamera(camera,controls.target)}
+function resetView(){camera.position.set(.2,1.65,3.8);controls.target.set(.1,.65,-.3);controls.update();constrainGardenCamera(camera,controls.target)}
 resetView();
 const environment=createEnvironment(scene);
 const eggs=createEggs(scene);

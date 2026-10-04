@@ -5,13 +5,15 @@ export const FOLLOW_CAMERA = { idleSeconds: 20, clearance: 1.9, speed: .24, look
 
 /** Slow, local steering; every candidate segment respects all ducks, not just the centre. */
 export class CameraFollow {
-  private lastManual = 0;
+  private lastManual = -Infinity;
   private held = false;
   private centre = new Vector3();
   private candidate = new Vector3();
   private best = new Vector3();
 
   manual(now: number, held = false): void { this.lastManual = now; this.held = held; }
+
+  release(now:number):void { if(Number.isFinite(this.lastManual))this.manual(now); }
 
   update(dt: number, now: number, camera: PerspectiveCamera, target: Vector3, ducks: readonly Vec2[]): boolean {
     if(this.held || now-this.lastManual<FOLLOW_CAMERA.idleSeconds || !ducks.length)return false;

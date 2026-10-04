@@ -349,3 +349,6 @@ Ved fødesøgning arbejder anden nu cirka fem sekunder omkring samme sted. Næbs
 Jordhuller er korrigeret til næb-/fingerstørrelse (højst cirka 3 × 4 cm inklusive jordkant i scenens skala). En fejl lod tidligere fade-faktoren forstørre nye huller. De beholder nu størrelsen og bliver gradvist gennemsigtige fra 15 til 75 sekunder efter sidste roden.
 
 Efter nat skifter ænderne nu til vågen adfærd med individuelle forsinkelser og forskellige pauser før fødesøgning, hvile og bad. Fødesøgningsperioder og arbejdet ved hvert hul varierer i varighed. Gentagne opdateringer af samme dag/nat-valg nulstiller ikke forsinkelserne. Hullerne er ujævne mørkegrønne mærker med individuelle farver og rotationer, uden den sorte cirkel og geometriske jordring.
+
+
+Kameraet følger straks flokken ved start, når automatisk følgefunktion er slået til og skærmen endnu ikke er berørt. Først efter manuel kamerabetjening bruges pausen på 20 sekunder. På touchskærme er panorering med to fingre lidt mere følsom og efterglidningen kortere. Afstand til ænder, hæk og bur respekteres stadig.
