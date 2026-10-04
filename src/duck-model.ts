@@ -464,7 +464,7 @@ export function createDuck(kind: DuckKind): {
     const extension = THREE.MathUtils.clamp(bodyExtension.step(uprightBlend * (1 - swimBlend) * (1 - peckAmount * .6),dt),0,1);
     bodyShape.scale.set(1 - extension * .28, .94 + extension * .27, 1.06 - extension * .32);
     neckPivot.position.set(0, .302 * bodyShape.scale.y, .143 * bodyShape.scale.z);
-    torso.position.y = .604 + extension * .035 - swimBlend * .38 - peckAmount * .17 -
+    torso.position.y = .604 - extension * .035 - swimBlend * .38 - peckAmount * .17 -
       low * .14 - display * .045 - sleepBlend*.18 -crouch*.075 -landing*.045 + (moving ? 0 : Math.sin(time * 1.6) * .004);
     torso.rotation.x = low * .30 + display * .065 +
       (moving ? -.025 :
@@ -538,18 +538,25 @@ export function createDuck(kind: DuckKind): {
       feet[i].rotation.set(step.lift*.22*(1-folded)+folded*.6,
         Math.atan2(Math.sin(step.yaw-group.rotation.y),Math.cos(step.yaw-group.rotation.y))*(1-folded),0);
       ankle.copy(feet[i].position).addScaledVector(yAxis, .025);
-      // A forward knee sits mostly inside the feathers; the hock bends backwards.
-      const kneeAngle=.98+step.lift*.24+folded*.4;
-      kneePosition.set(0,-Math.cos(kneeAngle)*.15,Math.sin(kneeAngle)*.15);
-      knees[i].position.copy(kneePosition);
-      const upperLength=.32, lowerLength=.30;
-      legDirection.copy(ankle).sub(kneePosition);
+      // Short shanks, with a nearly extended knee in stance. Flexion increases
+      // only during swing or tucking, rather than holding a deep crouch.
+      const thighLength=.11, shinLength=.25, lowerLength=.17;
+      const kneeFlex=.28+step.lift*.65+folded*1.1;
+      const upperLength=Math.sqrt(thighLength**2+shinLength**2+2*thighLength*shinLength*Math.cos(kneeFlex));
+      legDirection.copy(ankle);
       const reach=Math.max(Math.abs(upperLength-lowerLength)+.001, Math.min(upperLength+lowerLength-.001, legDirection.length()));
       legDirection.normalize();
       const along=(upperLength**2-lowerLength**2+reach**2)/(2*reach);
       const bend=Math.sqrt(Math.max(0, upperLength**2-along**2));
       legBend.set(0,0,-1).addScaledVector(legDirection,legDirection.z).normalize();
-      joint.copy(kneePosition).addScaledVector(legDirection,along).addScaledVector(legBend,bend);
+      joint.copy(legDirection).multiplyScalar(along).addScaledVector(legBend,bend);
+      // Resolve the thigh and shin around the forward-facing knee.
+      legDirection.copy(joint).normalize();
+      const kneeAlong=(thighLength**2-shinLength**2+upperLength**2)/(2*upperLength);
+      const kneeBend=Math.sqrt(Math.max(0,thighLength**2-kneeAlong**2));
+      legBend.set(0,0,1).addScaledVector(legDirection,-legDirection.z).normalize();
+      kneePosition.copy(legDirection).multiplyScalar(kneeAlong).addScaledVector(legBend,kneeBend);
+      knees[i].position.copy(kneePosition);
       placeBone(thighs[i],legOrigin,kneePosition,.023);
       placeBone(upperLegs[i],kneePosition,joint,.018);
       placeBone(lowerLegs[i],joint,ankle,.014);

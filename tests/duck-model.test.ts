@@ -15,8 +15,16 @@ test('knee and hock articulate while leg segment lengths stay fixed through walk
    model.animate({state:speed>1?'chase':'wander',speed,time:i/60,upright:1,look:0,peck:0,headTilt:0,displayDip:0});
    for(const side of ['left','right']){
     const knee=model.group.getObjectByName(`duck-${side}-knee`)!;
+    const hock=model.group.getObjectByName(`duck-${side}-hock`)!;
+    const foot=model.group.getObjectByName(`duck-${side}-foot`)!;
+    model.group.updateMatrixWorld(true);
+    if(foot.getWorldPosition(new THREE.Vector3()).y<.0033){
+     const thighDirection=knee.position.clone().normalize();
+     const shinDirection=hock.position.clone().sub(knee.position).normalize();
+     assert.ok(thighDirection.dot(shinDirection)>.95,'support knee stays nearly extended');
+    }
     kneeMin=Math.min(kneeMin,knee.position.z);kneeMax=Math.max(kneeMax,knee.position.z);
-    for(const [bone,length] of [['thigh',.15],['shin',.32],['tarsus',.30]] as const){
+    for(const [bone,length] of [['thigh',.11],['shin',.25],['tarsus',.17]] as const){
      assert.ok(Math.abs(model.group.getObjectByName(`duck-${side}-${bone}`)!.scale.y-length)<1e-6,'bones bend without stretching');
     }
    }
@@ -83,7 +91,7 @@ test('sleep folds the feet and tucks the head back, then releases the pose when 
  for(let i=181;i<=360;i++)model.animate({...pose,time:i/60,state:'wander',speed:.5,upright:1});
  model.group.updateMatrixWorld(true);
  assert.equal(leg.visible,true);
- assert.ok(head.getWorldPosition(new THREE.Vector3()).y>.9);
+ assert.ok(head.getWorldPosition(new THREE.Vector3()).y>.85);
  }
 });
 
