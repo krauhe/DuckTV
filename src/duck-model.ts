@@ -326,7 +326,24 @@ export function createDuck(kind: DuckKind): {
   head.position.set(0, .493, .050);
   neckPivot.add(head);
   const headMat = material(p.head, .86);
-  ellipsoid(head, headMat, [0, .073, .025], [.081, .115, .087], [.13, 0, 0]);
+  const headSkin=ellipsoid(head, headMat, [0, .073, .025], [.081, .115, .087], [.13, 0, 0]);
+  if(kind==='pied'){
+    // Paint the crown directly on the skin: no raised side patches resembling ears.
+    headSkin.geometry=new THREE.SphereGeometry(1,48,32);
+    headMat.vertexColors=true;
+    headMat.color.set('#ffffff');
+    const positions=headSkin.geometry.getAttribute('position');
+    const colors=new Float32Array(positions.count*3);
+    const white=new THREE.Color(p.head),black=new THREE.Color('#303532');
+    for(let i=0;i<positions.count;i++){
+      const x=positions.getX(i),y=positions.getY(i),z=positions.getZ(i);
+      const left=((x+.32)/.46)**2+((z+.24)/.58)**2;
+      const right=((x-.34)/.29)**2+((z+.04)/.42)**2;
+      const color=y>.45&&(left<1||right<1)?black:white;
+      color.toArray(colors,i*3);
+    }
+    headSkin.geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));
+  }
   // Broad brow and eye socket give the head a bird profile at distant camera angles.
   const eyeRingMat = material(p.eyeRing);
   const eyeMat = material('#181a17', .24);
@@ -340,11 +357,6 @@ export function createDuck(kind: DuckKind): {
       [.0025, .004, .004]);
   }
   if (kind === 'pied') {
-    const facePatch = material('#484846');
-    for (const side of [-1, 1]) {
-      ellipsoid(head, facePatch, [side * .068, .140, -.016],
-        [.013, .046, .042], [0, 0, side * -.13]);
-    }
     ellipsoid(neckPivot, material('#c48668'), [0, .255, .078],
       [.043, .085, .012], [.08, 0, 0], true);
   }

@@ -2,6 +2,8 @@
 
 En browserprototype med fire løbeænder, græs, et blåt muslingebassin og justerbart vejr. Klik på græsset for at kaste pastaskruer. Hunnerne tøver og nærmer sig; hannen holder vagt og spiser aldrig. Hold venstre museknap og træk for at dreje kameraet; hold højre og træk for at flytte udsigten. Musehjulet zoomer. Et kort venstreklik (højst 350 ms) kaster pasta på det valgte sted på græsset. Et kameratræk udløser aldrig et kast.
 
+Haven har et aktivt areal på 10,5 × 8 sceneenheder og hæk på alle fire sider. Kameraet holdes inden for haven og højst 1,65 enheder over græsset, under hækkens top. Den hvide ands sorte hovedpletter er farvet på issen uden udstående geometri.
+
 ## Kør lokalt
 
 Kræver Node.js 22.12+ (eller nyere understøttet LTS) og pnpm.

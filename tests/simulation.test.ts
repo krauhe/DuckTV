@@ -19,18 +19,18 @@ test('casts land in the garden, reject the pond, and respect cooldown and cap', 
   const sim = new Simulation(seeded());
   assert.equal(sim.castFood(POND.x, POND.z), false);
   assert.equal(sim.castFood(GARDEN.maxX + 1, 0), false);
-  assert.equal(sim.castFood(6.6, 4), true);
-  assert.equal(sim.castFood(6.6, 4), false);
+  assert.equal(sim.castFood(GARDEN.maxX - .4, GARDEN.maxZ - .4), true);
+  assert.equal(sim.castFood(GARDEN.maxX - .4, GARDEN.maxZ - .4), false);
   assert.equal(sim.foods.length, BEHAVIOR.foodPieces);
   assert.ok(sim.foods.every(food => !food.landed && !food.eaten));
   advance(sim, BEHAVIOR.foodLandingDelay + 0.1);
   assert.ok(sim.foods.every(food => food.landed));
   for (let i = 1; i < 10; i++) {
-    assert.equal(sim.castFood(6.6, 4), true);
+    assert.equal(sim.castFood(GARDEN.maxX - .4, GARDEN.maxZ - .4), true);
     advance(sim, BEHAVIOR.castCooldown + 0.05);
   }
   assert.equal(sim.foods.filter(food => !food.eaten).length, BEHAVIOR.maxActiveFood);
-  assert.equal(sim.castFood(6.6, 4), false);
+  assert.equal(sim.castFood(GARDEN.maxX - .4, GARDEN.maxZ - .4), false);
   assert.ok(sim.foods.every(food => food.x >= GARDEN.minX && food.x <= GARDEN.maxX && food.z >= GARDEN.minZ && food.z <= GARDEN.maxZ));
 });
 

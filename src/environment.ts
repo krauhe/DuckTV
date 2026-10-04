@@ -249,7 +249,7 @@ export function createEnvironment(scene: THREE.Scene): {
   const activeRipples: Ripple[] = [];
   let rippleCursor = 0;
 
-  // Rounded hedges and translucent hills frame the yard without enclosing it.
+  // A compact, enclosed garden. The camera stays below the hedge tops.
   const hillColors = [0x81b492, 0x94c5a0, 0x74a78a];
   const hills = new THREE.InstancedMesh(
     new THREE.SphereGeometry(1, 12, 8),
@@ -270,16 +270,19 @@ export function createEnvironment(scene: THREE.Scene): {
   const hedgeGeo = new THREE.IcosahedronGeometry(1, 1);
   const hedgeMat = new THREE.MeshStandardMaterial({ color: 0x4f9050, roughness: 1, flatShading: true });
   const hedgePositions: Array<[number, number, number, number]> = [];
-  for (let x = -11; x <= 11; x += 0.8) hedgePositions.push([x, -7.3 - rand() * 0.5, 0.65, 0.75 + rand() * 0.25]);
-  for (let z = -7; z <= 7; z += 0.85) {
-    hedgePositions.push([-10.8 - rand() * 0.35, z, 0.7, 0.72 + rand() * 0.22]);
-    hedgePositions.push([10.8 + rand() * 0.35, z, 0.7, 0.72 + rand() * 0.22]);
+  for (let x = GARDEN.minX-1.3; x <= GARDEN.maxX+1.3; x += .7) {
+    hedgePositions.push([x,GARDEN.minZ-1.3,.95,.88+rand()*.12]);
+    hedgePositions.push([x,GARDEN.maxZ+1.3,.95,.88+rand()*.12]);
+  }
+  for (let z = GARDEN.minZ-1.3; z <= GARDEN.maxZ+1.3; z += .7) {
+    hedgePositions.push([GARDEN.minX-1.3,z,.95,.88+rand()*.12]);
+    hedgePositions.push([GARDEN.maxX+1.3,z,.95,.88+rand()*.12]);
   }
   const hedges = new THREE.InstancedMesh(hedgeGeo, hedgeMat, hedgePositions.length);
   hedgePositions.forEach(([x, z, y, scale], i) => {
     grassDummy.position.set(x, y, z);
     grassDummy.rotation.set(rand() * 0.25, rand() * TAU, rand() * 0.25);
-    grassDummy.scale.set(scale * 1.3, scale, scale * 0.9);
+    grassDummy.scale.set(scale * 1.2, scale * 1.5, scale * 1.2);
     grassDummy.updateMatrix();
     hedges.setMatrixAt(i, grassDummy.matrix);
   });

@@ -5,8 +5,9 @@ import { createDuck } from './duck-model';
 import { createEnvironment } from './environment';
 import { Simulation } from './simulation';
 import { getGistrupWeather } from './weather';
-import { POND } from './types';
+import { GARDEN, POND } from './types';
 import { FeedGesture } from './pointer-gesture';
+import { constrainGardenCamera } from './camera-bounds';
 
 const $=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
 const canvas=$<HTMLCanvasElement>('garden');
@@ -21,14 +22,23 @@ renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=1.1;
 const scene=new THREE.Scene();
-const camera=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,.1,150);
+const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,150);
+function fitCameraWidth(){
+ camera.aspect=innerWidth/innerHeight;
+ // Keep a useful view on narrow screens without moving the camera beyond the hedge.
+ const verticalFov=2*Math.atan(Math.tan(THREE.MathUtils.degToRad(34))/camera.aspect);
+ camera.fov=THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(verticalFov),55,100);
+ camera.updateProjectionMatrix();
+}
+fitCameraWidth();
 const controls=new OrbitControls(camera,canvas);
 controls.enableDamping=true;controls.dampingFactor=.055;
-controls.minDistance=6;controls.maxDistance=22;
-controls.minPolarAngle=.40;controls.maxPolarAngle=Math.PI*.46;
+controls.minDistance=1.6;controls.maxDistance=9;
+controls.minPolarAngle=1.15;controls.maxPolarAngle=Math.PI*.48;
 controls.enablePan=true;
+controls.screenSpacePanning=false;
 controls.mouseButtons={LEFT:THREE.MOUSE.ROTATE,MIDDLE:THREE.MOUSE.DOLLY,RIGHT:THREE.MOUSE.PAN};
-function resetView(){camera.position.set(6,3.8,8.8);if(innerWidth<600)camera.position.multiplyScalar(1.85);controls.target.set(innerWidth<600?.4:0,.7,0);controls.update()}
+function resetView(){camera.position.set(.2,1.65,3.8);controls.target.set(.1,.65,-.3);controls.update();constrainGardenCamera(camera,controls.target)}
 resetView();
 const environment=createEnvironment(scene);
 const sim=new Simulation();
@@ -55,7 +65,7 @@ function cast(x:number,z:number){
 }
 const feedGesture=new FeedGesture();
 canvas.addEventListener('pointerdown',e=>feedGesture.down(e.pointerId,e.button,e.clientX,e.clientY,performance.now()));
-canvas.addEventListener('pointermove',e=>{feedGesture.move(e.pointerId,e.clientX,e.clientY);if(e.pointerType==='touch')return;const p=pointAt(e.clientX,e.clientY);pointerRing.visible=!!p&&Math.abs(p.x)<7&&Math.abs(p.z)<5&&Math.hypot(p.x-POND.x,p.z-POND.z)>POND.radius+.3;if(p)pointerRing.position.set(p.x,.027,p.z)});
+canvas.addEventListener('pointermove',e=>{feedGesture.move(e.pointerId,e.clientX,e.clientY);if(e.pointerType==='touch')return;const p=pointAt(e.clientX,e.clientY);pointerRing.visible=!!p&&p.x>GARDEN.minX&&p.x<GARDEN.maxX&&p.z>GARDEN.minZ&&p.z<GARDEN.maxZ&&Math.hypot(p.x-POND.x,p.z-POND.z)>POND.radius+.3;if(p)pointerRing.position.set(p.x,.027,p.z)});
 canvas.addEventListener('pointerleave',()=>pointerRing.visible=false);
 canvas.addEventListener('pointercancel',e=>feedGesture.cancel(e.pointerId));
 canvas.addEventListener('lostpointercapture',e=>feedGesture.cancel(e.pointerId));
@@ -81,7 +91,7 @@ async function weatherChanged(){
 $('weather').addEventListener('change',weatherChanged);
 setInterval(()=>{if($<HTMLSelectElement>('weather').value==='live'&&!document.hidden)void weatherChanged()},15*60_000);
 void weatherChanged();
-addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+addEventListener('resize',()=>{fitCameraWidth();renderer.setSize(innerWidth,innerHeight)});
 let last=performance.now();let statusTick=0;
 function frame(now:number){
  const dt=Math.min((now-last)/1000,.05);last=now;
@@ -105,7 +115,7 @@ function frame(now:number){
  for(const [id,mesh] of foods)if(!liveIds.has(id)){scene.remove(mesh);foods.delete(id);foodRotations.delete(id)}
  statusTick+=dt;
  if(statusTick>.4){statusTick=0;const eating=sim.ducks.some(d=>d.state==='eat'),approach=sim.ducks.some(d=>d.state==='notice'||d.state==='approach'),swimming=sim.ducks.some(d=>d.state==='swim');$('flock-status').textContent=sim.courtship?(sim.courtship.mutualDisplay?'Hunnen svarer på hannens duk':'Hannen gør kur med rytmiske duk'):eating?'Hunnerne spiser · hannen holder vagt':approach?'Nysgerrighed kræver lidt mod':swimming?'En tur i det blå bassin':'Flokken udforsker haven';if(now>toastUntil&&now-lastCast>6000)$('toast').textContent='De tager sig god tid. Lad dem komme til dig.'}
- controls.update();renderer.render(scene,camera);
+ controls.update();constrainGardenCamera(camera,controls.target);renderer.render(scene,camera);
 }
 renderer.setAnimationLoop(frame);
 document.addEventListener('visibilitychange',()=>last=performance.now());
