@@ -15,12 +15,12 @@ import { constrainGardenCamera } from './camera-bounds';
 import { CameraFollow } from './camera-follow';
 import { DuckAudio } from './duck-audio';
 import { getDaylight, formatTime } from './daylight';
-import {readPreferences,writePreferences,DEFAULT_PREFERENCES,type Preferences} from './preferences';
+import {initialPreferences,writePreferences,type Preferences} from './preferences';
 
 const $=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
 let preferenceStorage:Storage|undefined;
 try{preferenceStorage=localStorage;}catch{/* Storage may be disabled. */}
-const preferences=preferenceStorage?readPreferences(preferenceStorage):{...DEFAULT_PREFERENCES};
+const preferences=initialPreferences(preferenceStorage,new Date());
 declare const __DUCK_AUDIO_AVAILABLE__:boolean;
 if(!__DUCK_AUDIO_AVAILABLE__){preferences.sound=false;$('sound-toggle').hidden=true;}
 const savePreferences=()=>{if(preferenceStorage)writePreferences(preferenceStorage,preferences);};

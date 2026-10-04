@@ -1,3 +1,4 @@
+import {getDaylight} from './daylight';
 export interface Preferences {
  weather:'live'|'sun'|'cloud'|'rain';timeMode:'live'|'manual'|'cycle';
  minutes:number|null;quality:'auto'|'low'|'high';autoFollow:boolean;sound:boolean;
@@ -20,4 +21,17 @@ export function readPreferences(storage:Pick<Storage,'getItem'>):Preferences{
 }
 export function writePreferences(storage:Pick<Storage,'setItem'>,value:Preferences){
  try{storage.setItem(PREFERENCES_KEY,JSON.stringify(value));}catch{/* Private/restricted browsers can still use the controls. */}
+}
+
+/** A first evening visit shows the ducks awake; explicit saved time choices win. */
+export function initialPreferences(storage:Pick<Storage,'getItem'>|undefined,date:Date):Preferences{
+ const preferences=storage?readPreferences(storage):{...DEFAULT_PREFERENCES};
+ let savedTime=false;
+ try{
+  const saved=JSON.parse(storage?.getItem(PREFERENCES_KEY)??'null');
+  savedTime=!!saved && (saved.timeMode==='live' ||
+   (['manual','cycle'].includes(saved.timeMode)&&typeof saved.minutes==='number'&&Number.isFinite(saved.minutes)&&saved.minutes>=0&&saved.minutes<1440));
+ }catch{/* Corrupt or blocked storage behaves like a first visit. */}
+ if(!savedTime&&getDaylight(date).night){preferences.timeMode='manual';preferences.minutes=14*60;}
+ return preferences;
 }

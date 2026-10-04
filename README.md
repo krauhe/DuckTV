@@ -352,3 +352,6 @@ Efter nat skifter ænderne nu til vågen adfærd med individuelle forsinkelser o
 
 
 Kameraet følger straks flokken ved start, når automatisk følgefunktion er slået til og skærmen endnu ikke er berørt. Først efter manuel kamerabetjening bruges pausen på 20 sekunder. På touchskærme er panorering med to fingre lidt mere følsom og efterglidningen kortere. Afstand til ænder, hæk og bur respekteres stadig.
+
+
+Første besøg om aftenen/natten starter klokken 14 i haven, så ænderne er vågne. Vejret følger stadig Gistrup. Et gyldigt gemt tidsvalg (også realtid) har forrang; om dagen følger nye besøg tiden nu. Vælg »Følg tiden i Gistrup« under Indstillinger for at bruge den faktiske lokale tid.
