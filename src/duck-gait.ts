@@ -15,7 +15,15 @@ export class DuckGait {
   private initialized = false;
   private next = 0;
 
-  update(dt: number, position: Vector3, heading: number, enabled: boolean): void {
+  update(dt: number, position: Vector3, heading: number, enabled: boolean, groundHeight?:(x:number,z:number)=>number): void {
+    const support=(p:Vector3,yaw:number)=>{
+      if(!groundHeight)return position.y+.0032;
+      let height=groundHeight(p.x,p.z);
+      // Sample the webbed sole, not only its ankle, at the raised floor edge.
+      for(const forward of [-.03,.08,.16])for(const side of [-.08,.08])
+        height=Math.max(height,groundHeight(p.x+Math.sin(yaw)*forward+Math.cos(yaw)*side,p.z+Math.cos(yaw)*forward-Math.sin(yaw)*side));
+      return height+.0032;
+    };
     const relocated = this.initialized && position.distanceTo(this.previous) > .65;
     this.velocity.copy(position).sub(this.previous);
     this.velocity.y = 0;
@@ -30,6 +38,7 @@ export class DuckGait {
     if (!this.initialized || relocated || !enabled) {
       for (const foot of this.feet) {
         foot.position.copy(neutralFor(foot.side));
+        if(enabled)foot.position.y=support(foot.position,heading);
         foot.yaw = heading; foot.progress = 1; foot.lift = 0;
       }
       this.initialized = true;
@@ -42,7 +51,7 @@ export class DuckGait {
       foot.progress = Math.min(1, foot.progress + dt/foot.duration);
       const u = smooth(foot.progress);
       foot.position.lerpVectors(foot.from, foot.target, u);
-      foot.lift = Math.sin(Math.PI*foot.progress)**2;
+      foot.lift = Math.sin(Math.PI*foot.progress)**4;
       foot.position.y += foot.lift*foot.height;
       foot.yaw = foot.fromYaw + turn(foot.targetYaw-foot.fromYaw)*u;
       swinging ||= foot.progress < 1;
@@ -52,17 +61,19 @@ export class DuckGait {
       for (const index of [this.next, 1-this.next]) {
         const foot = this.feet[index];
         const offset = foot.position.distanceTo(neutralFor(foot.side));
-        if (offset < .035 + speed*.012 && Math.abs(turn(heading-foot.yaw)) < .3) continue;
+        if (offset < .045 + speed*.02 && Math.abs(turn(heading-foot.yaw)) < .3) continue;
         foot.from.copy(foot.position); foot.fromYaw = foot.yaw;
-        foot.duration = Math.max(.10, .23-speed*.08);
-        foot.height = .035+speed*.025;
-        foot.target.copy(this.neutral).addScaledVector(this.velocity, foot.duration*.65);
-        foot.target.y = position.y+.0032;
+        // Brief, quick recovery; most of each foot's cycle is planted stance.
+        foot.duration = Math.max(.065, .105-speed*.025);
+        foot.height = .052+speed*.028;
+        foot.target.copy(this.neutral).addScaledVector(this.velocity, foot.duration*.5);
+        foot.target.y = support(foot.target,heading);
         foot.targetYaw = heading; foot.progress = 0;
         this.next = 1-index;
         break;
       }
     }
+    for(const foot of this.feet)foot.position.y=Math.max(foot.position.y,support(foot.position,foot.yaw));
     this.previous.copy(position);
   }
 }

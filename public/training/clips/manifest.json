@@ -1,0 +1,54 @@
+{
+  "schema": "ducktv-motion-library-v1",
+  "runId": "2026-10-04T13:13:56.494Z",
+  "entries": [
+    {
+      "id": "stand-candidate",
+      "name": "Ståforsøg",
+      "url": "./stand-candidate.json",
+      "approval": "experimental-not-approved"
+    },
+    {
+      "id": "walk-candidate",
+      "name": "Gangforsøg",
+      "url": "./walk-candidate.json",
+      "approval": "experimental-not-approved"
+    },
+    {
+      "id": "push-backward-candidate",
+      "name": "Skub bagud",
+      "url": "./push-backward-candidate.json",
+      "approval": "experimental-not-approved"
+    },
+    {
+      "id": "push-forward-candidate",
+      "name": "Skub fremad",
+      "url": "./push-forward-candidate.json",
+      "approval": "experimental-not-approved"
+    },
+    {
+      "id": "recovery-backward-candidate",
+      "name": "Balancereaktion bagud",
+      "url": "./recovery-backward-candidate.json",
+      "approval": "experimental-not-approved"
+    },
+    {
+      "id": "recovery-forward-candidate",
+      "name": "Balancereaktion fremad",
+      "url": "./recovery-forward-candidate.json",
+      "approval": "experimental-not-approved"
+    },
+    {
+      "id": "start-stop-candidate",
+      "name": "Start · stop · gå",
+      "url": "./start-stop-candidate.json",
+      "approval": "experimental-not-approved"
+    },
+    {
+      "id": "bow-candidate",
+      "name": "Rytmiske duk",
+      "url": "./bow-candidate.json",
+      "approval": "experimental-not-approved"
+    }
+  ]
+}

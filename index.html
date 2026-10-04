@@ -1,25 +1,32 @@
 <!doctype html>
-<html lang="da"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="theme-color" content="#e8efe0"/><meta name="description" content="Gistrup Ande TV. Følg fire løbeænder, kast pasta, og se flokken komme nærmere."/><title>Gistrup Ande TV</title></head>
+<html lang="da"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/><meta name="theme-color" content="#e8efe0"/><meta name="description" content="Gistrup Ande TV. Følg fire løbeænder, kast pasta, og se flokken komme nærmere."/><title>Gistrup Ande TV</title></head>
 <body>
- <main id="app">
+ <main id="app" class="crt-boot">
   <canvas id="garden" aria-label="3D-have med fire løbeænder. Klik kort på græsset for at kaste pasta. Venstre museknap og træk drejer kameraet; højre museknap og træk flytter udsigten."></canvas>
   <header class="topbar">
-   <div class="brand"><span class="brand-icon" aria-hidden="true">◒</span><div><h1>Gistrup Ande <span>TV</span></h1></div></div>
-   <div class="top-actions"><span class="live-dot"></span><span id="weather-label">En rolig dag</span><button id="settings-toggle" aria-label="Åbn indstillinger" aria-expanded="false">☷</button></div>
+   <div class="brand"><img class="brand-logo" src="./gistrup-ande-tv.png" width="78" height="78" alt=""/><h1>Gistrup<br>Ande TV</h1></div>
   </header>
-  <aside id="settings" hidden>
-   <h2>Din udsigt</h2>
-   <label for="weather">Vejret i haven</label><select id="weather"><option value="sun">Sol og lette skyer</option><option value="live">Følg vejret i Gistrup</option><option value="cloud">Overskyet</option><option value="rain">En stille regnbyge</option></select>
-   <label for="quality">Detaljer</label><select id="quality"><option value="auto">Tilpasset skærmen</option><option value="low">Lavt strømforbrug</option><option value="high">Flere detaljer</option></select>
-   <button id="reset-view">Tilbage til udsigten</button><button id="restart">Start haven forfra</button>
-   <p class="settings-note">Fire digitale ænder med hvert sit temperament. Hannen holder vagt, mens hunnerne spiser.</p>
+  <aside id="settings" class="control-dock" aria-label="Indstillinger for haven">
+   <button id="dock-toggle" aria-expanded="false" aria-controls="dock-content">☷ <span>Haven · indstillinger</span> <output id="clock-summary">--:--</output></button>
+   <div id="dock-content" inert>
+   <div class="dock-grid">
+   <section><h2>Døgnet i Gistrup</h2>
+   <label for="time-mode">Tidspunkt</label><select id="time-mode"><option value="live">Nu · dansk tid</option><option value="manual">Vælg klokkeslæt</option><option value="cycle">Døgnforløb · 5 minutter</option></select>
+   <label for="day-time">Klokken <output id="clock-label">--:--</output></label><input id="day-time" type="range" min="0" max="1439" step="1" value="720"/>
+   <p id="sun-times" class="settings-note"></p>
+   </section><section><h2>Vejr og billede</h2>
+   <label for="weather">Vejret i haven</label><select id="weather"><option value="live" selected>Følg vejret i Gistrup</option><option value="sun">Sol og lette skyer</option><option value="cloud">Overskyet</option><option value="rain">En stille regnbyge</option></select>
+   <p id="weather-label" class="settings-note">En rolig dag</p>
+   </section><section><h2>Lyd og kamera</h2>
+   <button id="sound-toggle" aria-label="Slå andelyd til" aria-pressed="false">Lyd fra</button>
+   <label for="auto-follow"><input id="auto-follow" type="checkbox" checked/> Følg flokken automatisk efter en pause</label>
+   <div class="dock-actions"><button id="fullscreen">Fuld skærm</button></div>
+   </section></div>
+   <p class="settings-note desktop-help">Klik: pasta · venstre træk: drej · højre træk: flyt · piltaster: gå rundt</p>
+   <p class="settings-note touch-help">Tryk kort: pasta · én finger: drej · to fingre: flyt og zoom</p>
    <a href="https://open-meteo.com/" target="_blank" rel="noopener">Vejrdata: Open-Meteo · CC BY 4.0</a>
+   </div>
   </aside>
-  <div id="loading" role="status">Haven vågner …</div>
-  <div class="bottom-wrap">
-   <div id="toast" role="status" aria-live="polite">De tager sig god tid. Lad dem komme til dig.</div>
-   <div class="toolbar"><div class="feed-hint"><span class="pasta-icon" aria-hidden="true">〰</span><div><strong>Kast lidt pasta</strong><span>Klik: pasta · venstre træk: drej · højre træk: flyt</span></div></div><div class="toolbar-actions"><button id="feed" title="Kast pasta på græsset foran flokken">Kast pasta <span>↗</span></button><button id="fullscreen" aria-label="Fuld skærm" title="Fuld skærm">⛶</button></div></div>
-   <p class="caption"><span class="status-dot"></span> <span id="flock-status">Flokken udforsker haven</span><span class="version">FØRSTE UDGAVE</span></p>
-  </div>
+  <div id="loading" role="status" aria-label="TV tænder"></div>
  </main><script type="module" src="/src/main.ts"></script>
 </body></html>

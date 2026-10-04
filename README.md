@@ -1,5 +1,7 @@
 # Gistrup Ande TV
 
+[Åbn Ande TV](https://krauhe.github.io/DuckTV/) · [QR-kode til udskrift](https://krauhe.github.io/DuckTV/ande-tv-qr-print.pdf)
+
 En browserprototype med fire løbeænder, græs, et blåt muslingebassin og justerbart vejr. Klik på græsset for at kaste pastaskruer. Hunnerne tøver og nærmer sig; hannen holder vagt og spiser aldrig. Hold venstre museknap og træk for at dreje kameraet; hold højre og træk for at flytte udsigten. Musehjulet zoomer. Piltast op/ned bevæger kameraet frem/tilbage langs græsset; venstre/højre panorerer sidelæns i forhold til synsretningen. Piltasterne afbryder automatisk kameraføring og respekterer havens grænser. Et kort venstreklik (højst 350 ms) kaster pasta på det valgte sted på græsset. Et kameratræk udløser aldrig et kast.
 
 Haven har et aktivt areal på 10,5 × 8 sceneenheder og hæk på alle fire sider. Kameraet holdes inden for haven og højst 1,65 enheder over græsset, under hækkens top. Den hvide ands sorte hovedpletter er farvet på issen uden udstående geometri.
@@ -106,7 +108,7 @@ Videolinks opbevares i de lokale, Git-ignorerede referencenoter `andereferencer/
 
 | Kilde | Formål |
 | --- | --- |
-| Egen video: `andereferencer/2025-09-09 14.15.35.mp4`; oprindeligt `C:/Users/krist/Downloads/2025-09-09 14.15.35.mp4` | Egne ænder, det blå bassin, bevægelse og rappen. Råvideoen forbliver privat og Git-ignoreret. |
+| Egen video: `andereferencer/2025-09-09 14.15.35.mp4`; oprindeligt Downloads-mappen | Egne ænder, det blå bassin, bevægelse og rappen. Råvideoen forbliver privat og Git-ignoreret. |
 | Egne fotos og øvrige udtrukne videobilleder i `andereferencer/`; lokalt register `andereferencer/kilder-og-vurdering.txt` | Individernes proportioner, farver, aftegninger og havens bassin. Nye rå input placeres i `input/`. |
 | Havecenter: 1IbxRBVFPuQ | Adfærdsinspiration: fødesøgning, hvile og interesse for vand. |
 | Løb: YNikukqaQnI | Gang/løb, kropsholdning og ben; delt via Google-videosøgning. |
@@ -165,7 +167,7 @@ Efter ejerens beskrivelse tager alle fire ænder nu individuelle pauser med kort
 
 ### Insektjagt og fødesøgning
 
-Ejeren beskriver hurtige løb efter fluer med halsen sænket samt roden i jorden. Alle fire ænder kan nu tage korte jagtture med halsen frem og ned og hurtigere skridt, eller søge i jorden med små skridt og pauser med næbbet nede. Synlige fluer med flimrende vinger bevæger sig foran jagende ænder. Fluerne er foreløbige visuelle mål, ikke selvstændige dyr med fangstsimulation. Jagten bruger samme begrænsede drivkraft som almindelig gang, en fast kort rute væk fra bassinet og efterfølgende opbremsning. Pasta afbryder aktiviteterne; hannen holder da vagt og spiser ikke pasta. Hastigheder, hyppigheder og varigheder er animationsvalg. Snegle som fødekilde er ejerens formodning og er endnu ikke modelleret.
+Ejeren beskriver hurtige løb efter fluer med halsen sænket samt roden i jorden. Alle fire ænder kan nu tage korte jagtture med halsen frem og ned og hurtigere skridt, eller søge i jorden med små skridt og pauser med næbbet nede. Insekterne har først et fast sted i haven, som anden nærmer sig. Ved tæt afstand flygter insektet kort væk i sin egen retning. Under jagt strækkes hals og hoved frem i en mere strømlinet stilling. Dette følger ejerens observation; flugtafstand og hastighed er foreløbige animationsvalg, og fangst er endnu ikke simuleret. Jagten bruger samme begrænsede drivkraft som almindelig gang, en fast kort rute væk fra bassinet og efterfølgende opbremsning. Pasta afbryder aktiviteterne; hannen holder da vagt og spiser ikke pasta. Hastigheder, hyppigheder og varigheder er animationsvalg. Snegle som fødekilde er ejerens formodning og er endnu ikke modelleret.
 
 ### Forsigtighed over for kameraet
 
@@ -234,3 +236,104 @@ Vejr: [Open-Meteo](https://open-meteo.com/), CC BY 4.0. Den gratis API er til ik
 ## Validering
 
 Simulationens tests kontrollerer blandt andet madgrænser, hannen som vagt, hunnernes spisning, tidssteg og bassinbesøg. Browserkontrol foretages mod den lokale Vite-server med den installerede Chrome/Playwright; lokale testartefakter ligger i `test-results/` og ignoreres af Git.
+
+### Individuelle behov og social påvirkning
+Hver and har sit eget badebehov, hvilebehov og sociale temperament. Behovene ændres løbende: svømning reducerer badebehovet, søvn reducerer hvilebehovet. Nære naboers hvile øger tilbøjeligheden til fjerpudsning og derefter søvn; aktivitet hæmmer den. Alle fire må hvile samtidig, og hannen kan også bade. Naboerne aflæses fra samme øjebliksbillede, så beslutninger ikke smitter gennem hele flokken på én opdatering. Hunnen vurderer en parringsinvitation efter en forsinkelse ud fra egne behov, afstand og kameraets nærhed. Pasta og utryghed kan afbryde. Navigation, kø ved bassinet og kollisionskorrektion er fortsat fælles tekniske regler; der er ingen fælles rute, som flytter hele flokken. Parametrene er foreløbige animationsvalg, ikke målte biologiske værdier. Dette erstatter den tidligere regel om højst to hvilende ænder.
+
+
+### Døgn og aftenbur
+Indstillinger findes nu i bundpanelet: vis det med musen, tabulator eller tryk på bjælken. Her findes vejr, grafik, lyd, automatisk kamerafølge, nulstilling, pasta og fuld skærm. Escape lukker panelet. Tid kan følge dansk klokkeslæt, vælges med slideren eller gennemløbe et døgn på fem minutter; slideren skifter automatisk til manuelt tidspunkt.
+
+Solopgang og solnedgang beregnes lokalt for dagens dato ved Gistrup (56.995 N, 9.995 E) med [NOAA's tilnærmede solformler](https://gml.noaa.gov/grad/solcalc/solareqns.PDF) og Europe/Copenhagen, inklusive sommer-/vintertid. Lyset glider gennem skumringen. Tidspunkterne er omtrentlige visualiseringstider, ikke en præcis astronomisk almanak. Døgnforløbet gentager dagens lysforhold, ikke skiftende datoer.
+
+Fra et kvarter før solnedgang søger hver and mod en egen hvileplads i det lille åbne bur i havens bageste venstre hjørne. Den går via forsiden, pudser fjer og sover. Ænder i bassinet afslutter hoppet og går op, før de søger hjem. Kameraet kan stadig skræmme dem, og nærliggende pasta kan kort forsinke hjemturen. Ved solopgang vågner de igen. Overgangen flytter ikke ænderne øjeblikkeligt, selv om tids-slideren springer flere timer. Tidsvalg er en sceneindstilling; simulationens bevægelseshastighed forbliver naturlig.
+
+Logo: det valgte enkle forslag 1 med sort øje er gemt som godkendt projektgrafik i public/gistrup-ande-tv.png. Private billeder og lyd er fortsat ignoreret.
+
+### Hovedstabilisering i vand
+Ejerobservation: også under badning holdes hovedet roligt, mens kroppen gynger op og ned. Halsen skal optage denne bevægelse. Modellen kompenserer nu for 94 procent af vandets lodrette forskydning via halsen, mens hovedets størrelse og tilsigtede blikretning bevares. Procenten er et foreløbigt animationsvalg. Hoppene ind og ud kompenseres ikke som bølgebevægelse. En regressionstest kontrollerer alle fire modeller mod samme svømmepose uden bølger.
+
+
+Søvnreference fra ejeren: andereferencer/sleep-head-upright-wing-reference.jpg (privat). Hovedet hviler opret ved vingen med næbbet i fjerene; det må ikke vælte bagover efter fjerpudsning. Overgangen fra fjerpudsning til søvn testes særskilt, fordi en korrekt slutstilling ikke alene sikrer en korrekt overgang.
+
+
+Fjerdragt: fælles proceduregenererede farve- og reliefteksturer på krop, hals, hoved, hale og vinger. Fine fjerfaner og forskudte fjerrande giver overfladestruktur; vingerne har flere overlappende dækfjer og otte synlige svingfjer. Teksturerne modulerer de fire oprindelige farvetegninger og deles mellem modellerne. Det er fortsat stiliserede modeller, ikke fotoscannede fjer.
+
+
+### Gangtræning: verificerede skridt
+Ny træningsrunde bruger mindst 90 ms frit fodløft, 2,5 cm frihøjde, 4,5 cm fremføring og skiftevis landing før et skridt tælles. Den gamle tæller kunne belønne kontaktflimmer. Efter 12 generationer opnår kandidaten 1,60 sceneenheders fremdrift og 9 skridt på seks sekunder; 4/5 korte startstillinger holder balancen. En separat 30-sekunders prøve giver kun 3/5 uden fald (én falder efter 12,83 sekunder og én efter 1,40). Fodglidning er stadig betydelig. Klippet er eksperimentelt og ikke godkendt til den almindelige have; bøje-klippet fra den tidligere runde bevares i biblioteket. Sceneenheder og anatomi er fortsat ikke målt mod de virkelige ænder.
+
+
+Den efterfølgende robusthedsrunde bruger fem startstillinger og 12 sekunders træning med stor straf for fald. Efter otte generationer klarer den nye kandidat alle fem separate 30-sekunders prøver uden fald. Den nominelle prøve giver 5,26 sceneenheders fremdrift, 49 registrerede skridt og 1,13 i den samlede fodglidningsmåling. Første seks sekunder: 0,96 fremdrift og 0,33 glidning (forrige kandidat 1,60 og 0,83). Hele 30-sekunders optagelsen og de længere valideringer gemmes nu i klipbiblioteket og vises i browseren. Dette er fortsat en plan model uden ydre skub; det beviser hverken anatomisk realisme eller færdig robusthed. Scores fra forskellige træningskriterier må ikke sammenlignes direkte.
+
+
+### Balance efter ydre skub
+En impuls kan nu tilføres brystets massepunkt via hastighedshistorikken uden at flytte punktet øjeblikkeligt. Gangpolitikken er afprøvet med skub ved 3 sekunder og samlet prøvelængde 15 sekunder. Impulser ±0,4 og ±0,8 klares uden fald; −1,6 medfører fald ved 3,88 sekunder og +1,6 ved 4,73 sekunder. Tallene er i modellens ukalibrerede enheder. Det er seks scenarier med samme grundstartstilling, ikke en generel robusthedsgaranti. Optagelserne Skub fremad og Skub bagud viser ±0,8 med en tidsmarkering ved påvirkningen. Begge gemmes i bevægelsesbiblioteket sammen med stå-, gang- og duk-klippene. Næste balancearbejde bør adressere opsamlingsskridt efter større forstyrrelser; den nuværende styring korrigerer primært via anklerne.
+
+
+### Reaktiv hofte ved balancefejl
+En separat søgning afprøver 28 kombinationer af hoftekorrektion og ekstra knæløft. Korrektionen aktiveres først ved større forventet kropshældning og virker via de interne ledmotorer på svingbenet. Den bedste afprøvede kombination er hoftefaktor −0,2 og intet ekstra knæløft. Ved impuls +1,6 efter tre sekunder klarer den nu 30 sekunder uden fald; tidligere faldt basisgangen ved 4,73 sekunder. Ved −1,6 falder den stadig ved 3,89 sekunder. Begge  optagelser findes som Balancereaktion fremad/bagud, inklusive fejlen og impulsmetadata. Denne kandidat erstatter ikke automatisk den oprindelige gang: den er kun afprøvet i få forstyrrelsesscenarier, og glidning er stadig synlig.
+
+
+### Start, stop og genstart
+Ny særskilt trænet sekvens: blød igangsætning, opbremsning fra 3,2 til 4 sekunder, pause indtil 6 sekunder og derefter genstart. Gangfasen sættes på pause, så den ikke springer til en tilfældig benstilling ved genstart. Efter otte generationer a 16 kandidater holder alle fem afprøvede startstillinger balancen gennem 12 sekunder. I den nominelle prøve flytter kroppen sig −0,00038 sceneenheder mellem 4,5 og 5,5 sekunder, mens tåpunkterne driver cirka −0,0076 og +0,0067. Fødderne er derfor ikke perfekt fastlåst. Sekvensen er gemt som start-stop-candidate, med instruktion og validering; den er endnu ikke godkendt til hovedscenen.
+
+### Afprøvning af optagelser på havens model
+Træningsafspilleren har et valgfrit felt “Havens andemodel (forsøg)”. Her driver optagelsens ankelpositioner modellens eksisterende ben-IK. Bækkenets position, kroppens hældning, hovedets position og føddernes vip følger nu optagelsen. Akser og skala oversættes i src/training/retarget.ts. Visningen følger anden, så hele lange forsøg kan ses. Afspilningen bruger kun gemte data og almindelig animation, ingen træning eller modelinferens.
+
+Dette er en delvis overførsel: halsens kurve og knæets bøjeretning bruger stadig havens animationsrig. Hovedet holdes opret, da optagelsen ikke indeholder en målt kranierotation. Det skal derfor ikke vurderes som en fuldstændig gengivelse af fysikforsøget. Normalvisningen bevarer alle optagne led, og hovedscenen er endnu ikke skiftet til de eksperimentelle klip. Tests kontrollerer, at optagne fodmål faktisk bruges ved hastighed nul og at benlængderne bevares for de afprøvede bevægelser. Hvert tredje billede af det gemte 30-sekunders gangklip afprøves desuden for korrekt bækkenmidte, kropshældning og hovedposition.
+
+### Længere start–stop-prøve og ny duk-runde
+Start–stop-kandidaten er nu afprøvet i fem startstillinger over 30 sekunder: alle uden fald. Den nominelle optagelse har 5,15 sceneenheders fremdrift, 42 registrerede skridt og 1,15 i samlet fodglidning. Optagelsen og biblioteksklippet er forlænget til 900 billeder.
+
+Rytmiske duk er genberegnet med 20 generationer a 12 kandidater. Den sekssekunders træningsscore steg kun fra 27,8999 til 27,9347; der er ikke grundlag for at kalde det en stor bevægelsesforbedring. Alle fem efterfølgende 30-sekunders prøver var uden fald. Den tresekunders rytme er en angivet målbane fra ejerens observation, ikke indlært fra videopixels. Det nye klip er gemt sammen med de øvrige syv, uden at overskrive skubforsøgene. Visuel kontrol viser fortsat en for sammenpresset hals i havemodellens dybe duk: den nuværende overførsel skalerer halsen mellem bryst og hoved og skal erstattes af en bøjet hals, der bevarer sin længde bedre.
+### Bøjet hals ved afspilning
+Havemodellens træningsvisning bruger nu en separat, sammenhængende halsoverflade gennem brysttilhæftning, krave, optaget halsled og hoved. Radius profilen bevares under duk; afstanden mellem bryst og hoved skalerer ikke længere fjerdragtens tykkelse. Halsroden starter inde i brystet. Kraniets position og oprette orientering følger samme optagelse som før. Det er geometrisk tilpasning af optagelsen, ikke en ny fysisk halsmodel eller en garanti for konstant buelængde.
+
+Regressionstesten gennemløber hvert tredje billede af 30-sekunders duk-klippet og kontrollerer endepunkt ved hovedet, endelige koordinater, bevaret tykkelse, reel kurvatur samt skift tilbage til almindelig animation. Browserkontrollen ved 0,5 sekunder viser en bøjet hals frem for den tidligere korte stump. Den almindelige have bruger fortsat sin hidtidige halsanimation.
+### Reference: enkelt muslingebassin og gulvkontakt i afspilleren
+Ejerens bassin er én blå plastmuslingeskal, uden den anden låg-/bassindel. Privat produktreference: andereferencer/blue-single-shell-pool.webp. Bassinet har nu en flad bagkant, bølget forkant, tilpasset vandflade og vifteformede bundribber.
+
+Ved duk viste afspilleren overdreven fodglidning, fordi den trak bækkenets position fra alle led, men lod gulvet stå stille. Det er rettet til fælles verdenskoordinater; kameraet følger først uden for en lille zone, så balancebevægelser ses mod et fast gulv. I det første tresekunders duk er optagelsens bækkenudsving 0,03145 sceneenheder og tåudsving 0,00258. Den lille resterende fysiske glidning er bevaret og ikke skjult med fastlåsning af optagelsen.
+### Kollisioner mellem ænder og bur
+Havens simulation har supplerende kollisionsvolumener for krop, hale, hals og hoved. Hovedets rækkevidde øges ved hak og insektjagt. Volumenerne følger drejningen, og kontakt løses efter rotationen, også for hvilende ænder. Burets to sider og bagvæg er faste vægge med sikkerhedsmargin; fronten er åben. Et hoved, der under en drejning har passeret en væg, føres tilbage til kroppens side af væggen. Hastighed ind i kontaktfladen fjernes.
+
+Ænderne søger lidt til siden før sammenstød. En and på tilbagetog får mere plads af naboen, så kameraangst ikke låser den fast i flokken. Dette er geometriske tilnærmelser til de animerede modeller, ikke fjer-for-fjer-kollisioner. Tests dækker sammenfaldende og sovende ænder, fremstrakt hoved ved burets vægge, åben indgang, natlig indgang, kameraafstand, fodring og badning. Træningsarbejdet er fortsat pauset.
+### Søvn: roligt hoved på ryggen
+Ejerkorrektion: ingen rytmisk hovedbevægelse under søvn; hovedet skal helt ned og hvile på ryggen. Søvnposen blander nu hovedets position til et fast støttepunkt ved ryg/vingen, mens hovedet bevarer opret orientering. Fjerpudsningens rytme og den lille periodiske kropsbevægelse udfases under indsovning. Regressionstest af alle fire farvevarianter kontrollerer, at hovedet står stille efter overgangen, ligger ved støttepunktet, og stadig kan løftes ved opvågning.
+### Let flydende krop med stabiliseret hoved
+Ejerobservation: ænderne flyder let og højt, kroppen kan gynge, mens halsen optager forstyrrelser og hovedet holdes næsten stille. Svømmeanimationen har nu langsommere lodret gyngning (0,026 sceneenheder, 2,8 rad/s), let vip om begge kropsakser og en lidt højere flydestilling. Hovedets tidligere 94-procents lodrette kompensation bevares, og kroppens rotation kompenseres gennem halsen. Den synlige hals bøjer med en sammenhængende overflade og fast tykkelse i stedet for kun at blive strakt. Tallene er animationsvalg, ikke målinger fra træningsdata. En regressionstest kontrollerer synlig kropsbevægelse samtidig med næsten fast hovedposition.
+### Kamera ved buret
+Kameraet holdes uden for burets samlede volumen inklusive tagudhæng og en sikkerhedsmargin. Hele bevægelsen fra forrige billede kontrolleres, så et stort træk ikke kan springe gennem væggen. Kameraet kan stadig glide langs forhindringen. Kontrollen ligger efter panorering, piltaster, zoom/orbit og automatisk følgebevægelse. Eksisterende grænser for hæk og kamerahøjde bevares. Tests dækker store træk fra front og side, flere højder, fri bevægelse samt genopretning af en kamerastilling inde i buret.
+### Rettelse: tungere svømning og aktive padletag
+Ejerens præcisering erstatter den tidligere fortolkning om højere flydestilling: ænderne må ikke ligne balloner. Kroppen ligger nu cirka 0,072 sceneenheder dybere end den seneste variant, lodret duven er reduceret fra 0,026 til 0,010, og kroppen vipper mere om begge akser. Hovedstabiliseringen bevares via den bøjelige hals.
+
+Svømmebenene er ikke længere skjult. Venstre og højre fod padler skiftevis, med et bagudrettet tryk og en lettere fremføring, hvor svømmehuden drejes mere på kant. Overgangene er glatte, og takten følger hastigheden. Dette er endnu animationsstyring, ikke beregnet fremdrift fra vandmodstand. Regressionstesten kontrollerer aktive ben, modsat fase, slaglængde, lavere kropshøjde og ankler mellem vandfladen og bassinbunden.
+### Nattehimmel og plænens farvefelter
+Plænens dekorative farvefelter bruger nu et lysfølsomt materiale og modtager skygger. De tidligere lysegrønne nattepletter kom fra et selvbelyst MeshBasicMaterial. Himlen har 550 diskrete stjerner, der toner frem i mørke og dæmpes efter skydække. Stjernernes placering er dekorativ, ikke et astronomisk stjernekort. Visningen er kontrolleret ved manuelt klokkeslæt 00:00 i browseren.
+### Husk indstillinger
+Første besøg starter med aktuelt Gistrup-vejr og “Nu · dansk tid”. Vejr, tidsfunktion, manuelt klokkeslæt, billedkvalitet, automatisk kamerafølge og lydvalg gemmes lokalt i browserens localStorage (ducktv.preferences.v1). “Nu” beregnes på ny ved åbning, mens manuelle tidspunkter gendannes. Lyd, der er husket som slået til, venter på første klik eller tastetryk. Ugyldige data og blokeret lager forhindrer ikke haven i at starte. Browserkontrol verificerede overskyet vejr og midnat efter genindlæsning; visningen blev derefter sat tilbage til aktuelt vejr og tid.
+
+Ejerobservation om gang: Oprejste løbeænder står med næsten strakte synlige ben. Under gang er bøjning og fodløft korte og hurtige; benet er strakt i størstedelen af skridtet. Havens proceduregang bruger derfor kortere fremføring, et koncentreret fodløft og længere støttefase. Benfæstet ligger højere inde i fjerdragten, og oprejst gang sænker ikke automatisk kroppen. Hoftefæstet kan give lidt efter inde i kroppen ved fuld benlængde, så hverken knogler eller støttefødder trækkes. Parametrene er en visuel tilnærmelse, ikke målinger fra video; træningen er fortsat pauset.
+
+Halskorrektion: Den hvide ands halsplet er nu vertexfarve på den bøjelige hud frem for et separat objekt. Land og vand bruger samme kontinuerlige hals med bred rod, smal midte og overgang til hovedet. Hudens rod bliver inde i brystet under buk, mens hovedets stabilisering bevares. Gangens korte fodløft er hævet, og støttebenet er lidt mere udstrakt. Træningen er stadig pauset.
+
+Regn har nu korte stænk på græs, tag og bassinkant samt separate små ringe, hvor dråber rammer bassinets vand. Ringene afgrænses til vandfladen og deler ikke pulje med ændernes bølger. Stænk falder tilbage og fader ud; regnskyer får en mørkere gråblå farve afhængigt af skydække og nedbør.
+
+Insektjagt: Hovedet føres længere frem og ned, så halsens hud møder baghovedet frem for undersiden. Næbbet peger frem i halsens forlængelse. Stillingen blander gradvist ind og ud af jagt; hovedstabilisering bevares.
+
+Selvstændige hovedbevægelser: Vågne ænder skifter med individuelle pauser mellem at se mod kameraet, nærmeste artsfælle og fremad. Hovedet drejer først og tydeligere; halsen følger langsommere med en lille sideforskydning. Et nysgerrigt kig drejer ikke længere automatisk hele kroppen. Disse tilsigtede kig ligger oven på stabiliseringen under gang/vand; søvn, pudsning, hak og strømlinet insektjagt beholder deres særskilte stillinger.
+
+Buret har en automatisk lamel-rullelåge. Om natten skal alle fire ænder være sovende inde bag åbningen i mindst to sekunder, før lågen sænkes. Opvågning, friholdelse af døråbningen eller daggry får den til at rulle op igen. Den synlige lågehøjde styrer kollisionen, så en vågen and først kan passere, når der er plads.
+
+Hunnerne kan indimellem lægge et lyst æg, efter at de har ligget roligt og pudset sig eller hvilet. Hannen lægger aldrig æg. Tidspunkterne er komprimeret til pauseskærmen: første mulighed efter 5–10 minutter, derefter 15–25 minutter mellem mulighederne for hver hun. Æg bliver liggende mindst to minutter og fjernes kun efter vedvarende placering uden for kameraets synsfelt: 1½ sekund efterfulgt af tre sekunders fade. Hvis kameraet vender tilbage, beholdes ægget og får fuld synlighed igen. Der er højst 24 æg; synlige æg fjernes ikke for at gøre plads.
+
+Insektjagt har nu et kort næbsnap: undernæbbet åbnes, når fluen er tæt foran anden, og lukker hurtigt igen. Fangst kræver både korrekt retning og nærhed til næbbet; nogle forsøg mislykkes, så fluen flyver væk. Ved fangst forsvinder insektet. Afbrudt jagt lukker næbbet blødt igen.
+
+
+Ejerkorrektion 4. oktober 2026: Parringsinvitationer kommer hovedsagelig fra hannen og er rettet mod en hun, som vender mod ham. Hunner med ryggen til skal ikke begynde at dukke. Simulationen lader kun hannen initiere og kun den valgte, modvendte hun svare; invitationen ophører, hvis hun vender sig væk. Første mulighed er efter 90 sekunder og pausen efter en invitation mindst tre minutter. Disse tider er animationsvalg, ikke målte biologiske intervaller.
+
+Fødesøgning i græsset fylder nu en større del af den vågne tid: korte skridt afløses af længere perioder med næbbet i plænen. Efter en sådan tur går den enkelte and til sin plads ved bassinkanten, skyller næbbet og drikker med pauser mellem slurkene. Fødesøgningsperioden er foreløbigt 24 sekunder, efterfulgt af cirka seks sekunders drikning. Kamera, pasta, hvile og natlig hjemtur kan stadig ændre dens valg. Æglægning er reduceret som beskrevet ovenfor. Træningen er fortsat pauset.
+
+
+Mobil: Siden fylder telefonens viewport i høj- og bredformat, med hensyn til skærmens sikre kanter. Ét kort tryk kaster pasta, én finger drejer, og to fingre flytter/zoomer. Indstillinger åbnes med et tryk nederst. Billedopløsningen tilpasses automatisk; der er ikke længere et detaljevalg. QR-koden indeholder den direkte GitHub Pages-adresse og er kontrollæst med logoet indsat. Private lydoptagelser følger ikke med den offentlige udgave.

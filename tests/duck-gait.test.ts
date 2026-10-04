@@ -33,6 +33,19 @@ test('support feet stay planted, swing alternates, and stopping finishes the las
  }
 });
 
+test('walking spends most of each foot cycle planted with a brief recovery',()=>{
+ for(const speed of [.15,.4,.82]){
+  const gait=new DuckGait(),position=new Vector3();gait.update(0,position,0,true);
+  let planted=0,lifted=0;
+  for(let i=1;i<=1200;i++){
+   position.z+=speed/120;gait.update(1/120,position,0,true);
+   for(const foot of gait.feet){if(foot.lift<.05)planted++;else lifted++;}
+  }
+  assert.ok(planted/(planted+lifted)>.65,'each foot spends over 65% of the cycle supporting or near the ground');
+  assert.ok(lifted>50,'feet still lift rather than sliding');
+ }
+});
+
 test('turning in place takes steps and a reset replants feet at the new location',()=>{
  const gait=new DuckGait(),position=new Vector3();gait.update(0,position,0,true);
  let lifted=false;

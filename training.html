@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f7ef">
+    <title>Træningslaboratorium · DuckTV</title>
+  </head>
+  <body>
+    <main id="lab" class="shell">
+      <header class="topbar">
+        <a class="back-link" href="./">← Haven</a>
+        <div class="live-state"><span class="live-dot"></span><span id="connection">Forbinder …</span></div>
+      </header>
+
+      <section class="intro">
+        <p class="eyebrow">DUCKTV · BEVÆGELSESLABORATORIUM</p>
+        <h1>Små skridt, store spørgsmål.</h1>
+        <p class="lede">Se de gemte træningsforsøg, eller afprøv deres fodbevægelser på havens andemodel. Afspilningen kræver ingen løbende træning.</p>
+      </section>
+
+      <section class="progress-card" aria-label="Træningsfremdrift">
+        <div class="section-heading">
+          <div><p class="eyebrow">TRÆNINGSRUNDE</p><h2 id="stage-title">Venter på træning</h2></div>
+          <label class="follow-control"><input id="follow" type="checkbox" checked><span>Følg nyeste forsøg</span></label>
+        </div>
+        <div class="progress-meta"><span id="generation-label">Generation —</span><span id="population-label">—</span></div>
+        <div class="progress-track" role="progressbar" aria-label="Generationens fremdrift" aria-valuemin="0" aria-valuemax="60" aria-valuenow="0"><span id="progress-fill"></span></div>
+        <div class="progress-foot"><span id="stage-label">Afventer resultatfil</span><span id="updated-label">—</span></div>
+      </section>
+
+      <section class="dashboard-grid">
+        <article class="panel chart-panel">
+          <div class="panel-heading"><div><p class="eyebrow">SCORE I VALGT FORSØG</p><h2 id="trend-title">Udvikling pr. generation</h2></div><span class="chart-key"><i></i>score</span></div>
+          <svg id="trend" viewBox="0 0 640 180" role="img" aria-label="Udvikling i score gennem træningen"><text x="320" y="95" text-anchor="middle">Venter på målinger …</text></svg>
+          <div class="chart-footer"><span id="best-score">Bedste score —</span><span id="history-count">0 målinger</span></div>
+        </article>
+        <article class="panel robustness-panel">
+          <div class="panel-heading"><div><p class="eyebrow">ROBUSTHED</p><h2>Ekstra afprøvninger</h2></div><span class="robust-icon" aria-hidden="true">↗</span></div>
+          <div class="robust-number"><strong id="validation-passed">—</strong><span id="validation-total">af —</span></div>
+          <p id="validation-note">Vælg et forsøg for at se dets fem korte startstillinger.</p>
+          <p class="validation-scope">Fem korte startstillinger · ikke en test af skub eller langtidsbalance</p>
+          <p id="long-validation" class="validation-scope">30-sekunders prøve: endnu ikke udført.</p>
+          <div class="robust-meter"><span id="robust-fill"></span></div>
+        </article>
+      </section>
+
+      <section class="panel viewer-panel" aria-label="Afspiller forsøg">
+        <div class="viewer-heading">
+          <div><p class="eyebrow">GEMT FORSØG</p><h2>Bevægelsesafspiller</h2></div>
+          <div class="viewer-actions">
+            <label class="select-wrap"><span class="sr-only">Vælg træningsforsøg</span><select id="skill"></select></label>
+            <button id="download" class="quiet-button" type="button" title="Hent rå data som JSON">Hent data</button>
+          </div>
+        </div>
+        <div class="viewer-grid">
+          <div id="view" class="canvas-wrap"><div class="canvas-hint">Anden vises, når første optagelse er klar.</div></div>
+          <aside class="clip-sidebar">
+            <div class="clip-result"><span class="result-mark" aria-hidden="true">✳</span><div><span class="eyebrow">FORSØGSRESULTAT</span><p id="result">Henter træningsresultat …</p></div></div>
+            <div class="clip-stats">
+              <div><span>Varighed</span><strong id="duration">—</strong></div>
+              <div><span>Fremdrift</span><strong id="distance">—</strong></div>
+              <div><span>Score</span><strong id="score">—</strong></div>
+              <div><span>Optagelse</span><strong id="frame-count">—</strong></div>
+            </div>
+            <div class="fall-note" id="fall-note">Faldstatus vises for det valgte forsøg.</div>
+            <p id="disturbance-note" class="validation-scope"></p>
+          </aside>
+        </div>
+        <div class="playback-controls">
+          <button id="play" class="play-button" type="button" aria-label="Afspil">▶</button>
+          <button id="replay" class="quiet-button" type="button">↺ Start forfra</button>
+          <div class="scrub-wrap"><label class="sr-only" for="scrub">Vælg position i optagelsen</label><input id="scrub" type="range" min="0" max="0" value="0"><div class="scrub-labels"><span id="elapsed">0:00</span><span id="clip-length">0:00</span></div></div>
+          <label class="speed-wrap"><span>Hastighed</span><select id="speed" aria-label="Afspilningshastighed"><option value="0.25">0,25×</option><option value="0.5">0,5×</option><option value="1" selected>1×</option></select></label>
+        </div>
+        <div class="view-options"><label><input id="skeleton" type="checkbox"><span>Vis fysikmodellens led og knogler</span></label><label><input id="garden-model" type="checkbox"><span>Havens andemodel (forsøg)</span></label><div class="view-switch" role="group" aria-label="Kameravisning"><button type="button" data-camera="side" class="active">Fra siden</button><button type="button" data-camera="perspective">Perspektiv</button></div></div>
+        <p id="model-note" class="validation-scope">Fysikmodellen: alle led kommer fra optagelsen. Visningen følger anden.</p>
+      </section>
+
+      <footer class="disclaimer"><span aria-hidden="true">ⓘ</span><p><strong>Eksperimentel model.</strong> Bevægelsen bygger på forenklet fysik i ét plan og er vist i 3D. Hovedets position kommer fra optagelsen, mens næbbet peger fast fremad. Anatomi og gang er ikke valideret. Et højt resultat dokumenterer ikke naturlig gang eller balance.</p></footer>
+    </main>
+    <script type="module" src="/src/training/view.ts"></script>
+  </body>
+</html>

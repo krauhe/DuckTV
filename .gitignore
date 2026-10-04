@@ -45,3 +45,9 @@ reference/
 Thumbs.db
 .vscode/
 .idea/
+
+# Approved generated branding (not private reference media).
+!public/gistrup-ande-tv.png
+
+!public/ande-tv-qr.png
+!public/ande-tv-qr-print.png
