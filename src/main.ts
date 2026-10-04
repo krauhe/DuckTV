@@ -9,6 +9,7 @@ import { getGistrupWeather } from './weather';
 import { GARDEN, POND } from './types';
 import { FeedGesture } from './pointer-gesture';
 import { constrainGardenCamera } from './camera-bounds';
+import { CameraFollow } from './camera-follow';
 
 const $=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
 const canvas=$<HTMLCanvasElement>('garden');
@@ -33,13 +34,19 @@ function fitCameraWidth(){
 }
 fitCameraWidth();
 const controls=new OrbitControls(camera,canvas);
+const cameraFollow=new CameraFollow();
+cameraFollow.manual(performance.now()/1000);
+controls.addEventListener('start',()=>cameraFollow.manual(performance.now()/1000,true));
+controls.addEventListener('end',()=>cameraFollow.manual(performance.now()/1000));
+addEventListener('blur',()=>cameraFollow.manual(performance.now()/1000));
+canvas.addEventListener('pointercancel',()=>cameraFollow.manual(performance.now()/1000));
 controls.enableDamping=true;controls.dampingFactor=.055;
 controls.minDistance=1.6;controls.maxDistance=9;
 controls.minPolarAngle=1.15;controls.maxPolarAngle=Math.PI*.48;
 controls.enablePan=true;
 controls.screenSpacePanning=false;
 controls.mouseButtons={LEFT:THREE.MOUSE.ROTATE,MIDDLE:THREE.MOUSE.DOLLY,RIGHT:THREE.MOUSE.PAN};
-function resetView(){camera.position.set(.2,1.65,3.8);controls.target.set(.1,.65,-.3);controls.update();constrainGardenCamera(camera,controls.target)}
+function resetView(){cameraFollow.manual(performance.now()/1000);camera.position.set(.2,1.65,3.8);controls.target.set(.1,.65,-.3);controls.update();constrainGardenCamera(camera,controls.target)}
 resetView();
 const environment=createEnvironment(scene);
 const sim=new Simulation();
@@ -99,7 +106,8 @@ let last=performance.now();let statusTick=0;
 function frame(now:number){
  const dt=Math.min((now-last)/1000,.05);last=now;
  if(document.hidden)return;
- controls.update();constrainGardenCamera(camera,controls.target);
+ if(!cameraFollow.update(dt,now/1000,camera,controls.target,sim.ducks))controls.update();
+ constrainGardenCamera(camera,controls.target);
  sim.setViewer(camera.position.x,camera.position.z);
  sim.update(dt);environment.update(sim.time,dt);
  for(let i=0;i<sim.ducks.length;i++){

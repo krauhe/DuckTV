@@ -4,6 +4,8 @@ En browserprototype med fire løbeænder, græs, et blåt muslingebassin og just
 
 Haven har et aktivt areal på 10,5 × 8 sceneenheder og hæk på alle fire sider. Kameraet holdes inden for haven og højst 1,65 enheder over græsset, under hækkens top. Den hvide ands sorte hovedpletter er farvet på issen uden udstående geometri.
 
+Efter 20 sekunder uden kamerabetjening følger kameraet langsomt flokken og retter blikket mod dens midte. Automatisk bevægelse er højst 0,24 sceneenheder i sekundet og holder mindst 1,9 enheders afstand til hver and, når afstanden allerede er til rådighed. Kommer en and selv tættere på, søger kameraet roligt væk uden at teleportere. Ved en blokeret rute bliver kameraet stående og følger med blikket. Muse-/berøringsbetjening, zoom og nulstilling af udsigten afbryder straks automatikken og starter ventetiden igen.
+
 ## Kør lokalt
 
 Kræver Node.js 22.12+ (eller nyere understøttet LTS) og pnpm.
