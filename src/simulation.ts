@@ -551,17 +551,17 @@ export class Simulation {
       }
       this.moveLand(duck, this.safeLand(insect), BEHAVIOR.chaseSpeed, dt);
     } else {
-      const step = Math.floor(elapsed / 1.8), phase = elapsed % 1.8;
+      const step = Math.floor(elapsed / 5.5), phase = elapsed % 5.5;
       if (step !== intent.forageStep) {
         intent.forageStep = step;
         const angle = duck.heading + this.range(-.35, .35);
         intent.target = this.safeLand({ x: duck.x+Math.sin(angle)*.3, z: duck.z+Math.cos(angle)*.3 });
       }
-      if (phase < .40) this.moveLand(duck, intent.target, BEHAVIOR.forageSpeed, dt);
+      if (phase < .65) this.moveLand(duck, intent.target, BEHAVIOR.forageSpeed, dt);
       else {
         duck.look = Math.sin(elapsed*4)*.18;
         // Probe only after braking, so the bill does not scrape along the ground.
-        if (duck.speed < .06) duck.peck = .65+.35*Math.sin((phase-.65)/1.15*Math.PI)**2;
+        if (duck.speed < .06) duck.peck = .78+.12*Math.sin(elapsed*6.5)**2;
       }
     }
     return true;

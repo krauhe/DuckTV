@@ -342,3 +342,5 @@ Mobil: Siden fylder telefonens viewport i høj- og bredformat, med hensyn til sk
 Hals–hoved-samling: Halsens øverste ring fæstnes inde i kraniets fjerflade og følger hovedets egen rotation. Den smalner inde i hovedet, så der er overlap ved kig, duk, søvn og svømning. En geometrisk regressionstest kontrollerer hele enderingen mod selve hovedoverfladen gennem aktivitetsskift for alle fire ænder.
 
 Fødesøgning: Næbspidsen søger ned til græssets højde med små lokale søgebevægelser. Hovedet holdes selvstændigt skråt nedad, mens halsen bøjer mod hovedets placering, frem for at hele hovedet følger et stift halsbuk. Drikning og parringsinvitationer har separate bevægelser.
+
+Ved fødesøgning arbejder anden nu cirka fem sekunder omkring samme sted. Næbspidsen går lidt under græsoverfladen og laver små bevægelser i hullet. Små mørke jordhuller med jordkant dannes dér, hvor næbbet rammer, og vokser ved fortsat roden. Hullerne er visuelle overflademærker, ikke udgravet terræn; højst 64 bevares, og gamle mærker forsvinder gradvist efter to minutter.

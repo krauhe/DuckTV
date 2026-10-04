@@ -105,7 +105,7 @@ test('feeding holds the bill at the grass with an independently downward-facing 
    if(i<180)continue;
    model.group.updateMatrixWorld(true);
    const tip=head.localToWorld(new THREE.Vector3(0,.036,.30));
-   assert.ok(tip.y>=.12 && tip.y<.16,`bill must reach grass: ${tip.y}`);
+   assert.ok(tip.y>=.095 && tip.y<.135,`bill must reach grass: ${tip.y}`);
    const forward=new THREE.Vector3(0,0,1).applyQuaternion(head.getWorldQuaternion(new THREE.Quaternion()));
    assert.ok(forward.y<-.7 && forward.y>-.9,'bill aims down without tumbling over with the neck');
   }

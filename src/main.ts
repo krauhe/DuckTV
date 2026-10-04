@@ -6,6 +6,7 @@ import { createDuck } from './duck-model';
 import { createFly } from './insect-model';
 import { createEnvironment } from './environment';
 import { createEggs } from './eggs';
+import { createForageHoles } from './forage-holes';
 import { Simulation } from './simulation';
 import { getGistrupWeather } from './weather';
 import { GARDEN, POND } from './types';
@@ -98,6 +99,7 @@ function resetView(){cameraFollow.manual(performance.now()/1000);camera.position
 resetView();
 const environment=createEnvironment(scene);
 const eggs=createEggs(scene);
+const forageHoles=createForageHoles(scene),forageTip=new THREE.Vector3();
 const sim=new Simulation();
 const duckModels=sim.ducks.map(d=>{const m=createDuck(d.kind);scene.add(m.group);return m});
 const seenWaterEntries=sim.ducks.map(()=>0);
@@ -205,7 +207,7 @@ function frame(now:number){
  constrainGardenCamera(camera,controls.target,previousCameraPosition);
  sim.setViewer(camera.position.x,camera.position.z);
  updateDaylight(dt);sim.update(dt);environment.update(sim.time,dt);environment.setShelterDoor(sim.shelterDoor.closed);
- eggs.update(sim.time,dt,sim.ducks,camera);
+ eggs.update(sim.time,dt,sim.ducks,camera);forageHoles.update(sim.time);
  duckAudio.update(now/1000,sim.ducks.some(d=>d.state!=='sleep'),Math.min(...sim.ducks.filter(d=>d.state!=='sleep').map(d=>Math.hypot(d.x-camera.position.x,d.z-camera.position.z))));
  for(let i=0;i<sim.ducks.length;i++){
   const d=sim.ducks[i],m=duckModels[i];m.group.position.set(d.x,d.y,d.z);m.group.rotation.y=d.heading;
@@ -216,6 +218,7 @@ function frame(now:number){
    fly.wings.forEach((wing,index)=>wing.rotation.z=(index?1:-1)*Math.sin(sim.time*67)*.7);
   }
   m.animate({mouthOpen:d.mouthOpen,groundHeight:gardenGroundHeight,waterBob:d.state==='swim'?d.y-POND.waterY:0,speed:d.speed,time:sim.time+i*1.71,state:d.state,look:d.look,peck:d.peck,upright:d.upright,headTilt:d.headTilt,displayDip:d.displayDip,accelerationForward:d.ax*Math.sin(d.heading)+d.az*Math.cos(d.heading),accelerationSide:d.ax*Math.cos(d.heading)-d.az*Math.sin(d.heading),jumpProgress:d.jumpProgress,crouch:d.crouch,landing:d.landing});
+  if(d.state==='forage'&&d.speed<.06&&d.peck>.65){m.group.updateMatrixWorld(true);m.group.getObjectByName('duck-head')!.localToWorld(forageTip.set(0,.036,.30));forageHoles.probe(forageTip,sim.time,dt);}
   if(d.waterEntries>seenWaterEntries[i])environment.ripple(d.x,d.z,1.6);
   seenWaterEntries[i]=d.waterEntries;
   if(d.state==='swim'&&Math.random()<dt*3)environment.ripple(d.x,d.z,.25);

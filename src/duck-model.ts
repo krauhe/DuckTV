@@ -621,7 +621,7 @@ export function createDuck(kind: DuckKind): {
       feedingTip.set(Math.sin(time*3.1)*.018,0,.72);
       group.updateMatrixWorld(true);
       group.localToWorld(feedingTip);
-      feedingTip.y=(pose.groundHeight?.(feedingTip.x,feedingTip.z)??rootPosition.y)+.008+.005*(1+Math.sin(time*9));
+      feedingTip.y=(pose.groundHeight?.(feedingTip.x,feedingTip.z)??rootPosition.y)+(state==='forage'?-.012+.007*Math.sin(time*9):.008+.005*(1+Math.sin(time*9)));
       group.worldToLocal(feedingTip);
       feedingOffset.set(0,.036,.30).applyQuaternion(feedingRotation);
       feedingHead.lerp(feedingTip.sub(feedingOffset),probe);
