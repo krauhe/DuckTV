@@ -43,6 +43,7 @@ resetView();
 const environment=createEnvironment(scene);
 const sim=new Simulation();
 const duckModels=sim.ducks.map(d=>{const m=createDuck(d.kind);scene.add(m.group);return m});
+const seenWaterEntries=sim.ducks.map(()=>0);
 
 // A tiny spiral of pasta: actual 3D helix, shared geometry across pieces.
 class FusilliCurve extends THREE.Curve<THREE.Vector3>{constructor(){super()}getPoint(t:number,target=new THREE.Vector3()){return target.set(Math.cos(t*Math.PI*7)*.028,(t-.5)*.18,Math.sin(t*Math.PI*7)*.028)}}
@@ -100,7 +101,9 @@ function frame(now:number){
  sim.update(dt);environment.update(sim.time,dt);
  for(let i=0;i<sim.ducks.length;i++){
   const d=sim.ducks[i],m=duckModels[i];m.group.position.set(d.x,d.y,d.z);m.group.rotation.y=d.heading;
-  m.animate({speed:d.speed,time:sim.time+i*1.71,state:d.state,look:d.look,peck:d.peck,upright:d.upright,headTilt:d.headTilt,displayDip:d.displayDip,accelerationForward:d.ax*Math.sin(d.heading)+d.az*Math.cos(d.heading),accelerationSide:d.ax*Math.cos(d.heading)-d.az*Math.sin(d.heading)});
+  m.animate({speed:d.speed,time:sim.time+i*1.71,state:d.state,look:d.look,peck:d.peck,upright:d.upright,headTilt:d.headTilt,displayDip:d.displayDip,accelerationForward:d.ax*Math.sin(d.heading)+d.az*Math.cos(d.heading),accelerationSide:d.ax*Math.cos(d.heading)-d.az*Math.sin(d.heading),jumpProgress:d.jumpProgress,crouch:d.crouch,landing:d.landing});
+  if(d.waterEntries>seenWaterEntries[i])environment.ripple(d.x,d.z,1.6);
+  seenWaterEntries[i]=d.waterEntries;
   if(d.state==='swim'&&Math.random()<dt*3)environment.ripple(d.x,d.z,.25);
  }
  const liveIds=new Set<string>();

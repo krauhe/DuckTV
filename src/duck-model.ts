@@ -393,6 +393,7 @@ export function createDuck(kind: DuckKind): {
   let displayBlend = 0;
   let preenBlend = 0;
   let sleepBlend = 0;
+  let jumpBlend=0;
   const bodyPitch=new Spring(0,1.4,100,20),bodyRoll=new Spring(0,1.4,100,20);
   const neckForward=new Spring(0,.25,35,5),neckSide=new Spring(0,.25,35,5);
   const bodyExtension=new Spring(1,1,90,18);
@@ -416,6 +417,9 @@ export function createDuck(kind: DuckKind): {
     const headLag=neckForward.step(-forward*.014,dt),headSide=neckSide.step(-lateral*.014,dt);
     // Smooth the posture and expression signals independently of the walking gait.
     const postureResponse = 1 - Math.exp(-dt * 6);
+    const jump=pose.jumpProgress??-1,airborne=jump>=0;
+    jumpBlend+=((airborne?1:0)-jumpBlend)*(1-Math.exp(-dt*25));
+    const crouch=pose.crouch??0,landing=pose.landing??0;
     preenBlend += ((state==='preen'?1:0)-preenBlend)*postureResponse;
     sleepBlend += ((state==='sleep'?1:0)-sleepBlend)*postureResponse;
     uprightBlend += (THREE.MathUtils.clamp(pose.upright, 0, 1) -
@@ -424,15 +428,16 @@ export function createDuck(kind: DuckKind): {
       tiltBlend) * postureResponse;
     displayBlend += (THREE.MathUtils.clamp(pose.displayDip, 0, 1) -
       displayBlend) * postureResponse;
-    const moving = pose.speed > .005 && state!=='swim' && state!=='sleep' && state!=='preen';
+    const moving = !airborne&&crouch===0&&pose.speed > .005 && state!=='swim' && state!=='sleep' && state!=='preen';
     const swim = state === 'swim';
     const peck = Math.max(0, pose.peck);
     const peckAmount = Math.min(1, peck);
     const stride = moving ? Math.min(1, Math.max(.08, pose.speed * 2.5)) : 0;
     if (moving) gaitPhase += dt * (7.5 + Math.min(4, pose.speed * 9));
     const phase = gaitPhase;
-    swimBlend += ((swim ? 1 : 0) - swimBlend) * (1 - Math.exp(-dt * 8));
-    if (Math.abs(swimBlend - (swim ? 1 : 0)) < .001) swimBlend = swim ? 1 : 0;
+    const floatTarget=swim?1:state==='enter'&&airborne?THREE.MathUtils.smoothstep(jump,.35,.9):state==='exit'?(airborne?1-THREE.MathUtils.smoothstep(jump,0,.55):1):0;
+    swimBlend += (floatTarget - swimBlend) * (1 - Math.exp(-dt * 18));
+    if (Math.abs(swimBlend - floatTarget) < .001) swimBlend = floatTarget;
     const low = (1 - uprightBlend) * (1 - swimBlend) * (1 - peckAmount);
     const display = displayBlend * (1 - swimBlend) * (1 - peckAmount);
     // Raised runner posture: narrow breast, tucked wings and a longer silhouette.
@@ -441,7 +446,7 @@ export function createDuck(kind: DuckKind): {
     bodyShape.scale.set(1 - extension * .28, .94 + extension * .27, 1.06 - extension * .32);
     neckPivot.position.set(0, .302 * bodyShape.scale.y, .143 * bodyShape.scale.z);
     torso.position.y = .604 + extension * .035 - swimBlend * .38 - peckAmount * .17 -
-      low * .14 - display * .045 - sleepBlend*.18 + (moving ? 0 : Math.sin(time * 1.6) * .004);
+      low * .14 - display * .045 - sleepBlend*.18 -crouch*.075 -landing*.045 + (moving ? 0 : Math.sin(time * 1.6) * .004);
     torso.rotation.x = low * .30 + display * .065 +
       (moving ? -.025 :
         -swimBlend * .035 + (state === 'rest' ? .022 : 0));
@@ -493,12 +498,13 @@ export function createDuck(kind: DuckKind): {
       head.quaternion.copy(parentRotation).multiply(steadyHeadRotation);
     }
     for (let i = 0; i < 2; i++) {
-      const folded=Math.max(swimBlend,sleepBlend);
+      const folded=Math.max(swimBlend,sleepBlend,jumpBlend*.8,crouch*.25);
       legs[i].visible = folded < .99;
-      legs[i].position.y = .299 - .27 * folded;
+      // Tuck the feet up towards the body in flight, rather than detaching the leg roots.
+      legs[i].position.y = .299 - .27 * Math.max(swimBlend,sleepBlend) - crouch*.075;
       legs[i].scale.y = Math.max(.01, 1 - folded);
       const swing = Math.sin(phase + i * Math.PI) * stride;
-      legs[i].rotation.x = swing * .47;
+      legs[i].rotation.x = swing * .47+jumpBlend*.6;
       feet[i].rotation.x = -legs[i].rotation.x * .78 +
         Math.max(0, -swing) * .16;
     }

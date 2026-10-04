@@ -3,6 +3,15 @@ export const DYNAMICS={driveForce:3.2,velocityGain:7,turnAcceleration:5,turnTorq
 
 export interface Motion {vx:number;vz:number;ax:number;az:number;mass:number}
 
+export const HOP_GRAVITY=9.81;
+/** Choose a takeoff impulse that clears the rim; gravity controls the flight. */
+export function planHop(startY:number,endY:number,apex:number,mass:number){
+ const height=Math.max(apex,startY+.01,endY+.01);
+ const launchSpeed=Math.sqrt(2*HOP_GRAVITY*(height-startY));
+ const duration=(launchSpeed+Math.sqrt(2*HOP_GRAVITY*(height-endY)))/HOP_GRAVITY;
+ return {impulse:mass*launchSpeed,duration};
+}
+
 /** A bounded steering force changes momentum; even stopping takes time. */
 export function drive(m:Motion,wantedX:number,wantedZ:number,dt:number):void{
  let fx=(wantedX-m.vx)*DYNAMICS.velocityGain;

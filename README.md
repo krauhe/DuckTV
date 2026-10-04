@@ -43,7 +43,7 @@ Gang og svømning styres nu gennem ønsket hastighed og en begrænset drivkraft:
 
 Dæmpede masse-fjedre giver kroppen hældning ved acceleration og sving samt elastisk overgang mellem slank og lav kropsform. Halsen får en lille inertireaktion, samtidig med at hovedstabiliseringen kompenserer for skridtenes vuggen. Stivhed og dæmpning holder bevægelserne små og får dem til at falde til ro.
 
-Dette er en hybrid mellem adfærd, fysik og styrede animationer. Bassinkanten passeres stadig ad en styret kurve, nu med glatte endepunkter. Fodkontakt, vandets opdrift og hele kroppen simuleres endnu ikke fysisk. Kollisionskorrektioner kan stadig flytte ænder direkte ved kontakt; accelerationens grænse gælder drivkraften i fri bevægelse. Der er endnu ikke et anatomisk skelet med fleksible led langs hele halsen.
+Dette er en hybrid mellem adfærd, fysik og styrede animationer. Ved bassinkanten vender anden sig mod landingen og samler benene før et afsæt. Selve luftfasen følger nu en ballistisk bane med konstant tyngdeacceleration (9,81 i sceneenheder) og varer omtrent 0,6 sekunder. Impulsen tilpasses modelmassen og den nødvendige frihøjde. Der er ingen langsom ind-/udtoning af højden under flyvningen. Fødderne trækkes op, svømmestillingen forberedes på vej ned, og vandlandingen udløser en dæmpet dukkert og tydelige ringe. Afsæt og kontakt med vandet er fortsat forenklede. Fodkontakt, vandets opdrift og hele kroppen simuleres endnu ikke fysisk. Kollisionskorrektioner kan stadig flytte ænder direkte ved kontakt; accelerationens grænse gælder drivkraften i fri bevægelse. Der er endnu ikke et anatomisk skelet med fleksible led langs hele halsen.
 
 Vejen mod større fotorealisme: (1) fodfæste og støttefaser, (2) anatomisk krop og hals med flere led og hud, der følger leddene, (3) individuelle fjerfarver og overfladedetaljer fra referencebilleder, (4) mere naturtro lys, skygger og vand. Fysik skal understøtte de observerede bevægelser; mere elasticitet alene giver ikke større realisme.
 
@@ -62,6 +62,12 @@ Prototypen har nu glidende stillingsskift, hovedhældning mod betragteren og kor
 Efter ejerens beskrivelse tager alle fire ænder nu individuelle pauser med korte pudsestrøg mod vingen og senere en lur: kroppen sænkes, benene foldes ind, øjnene lukkes, og hovedet lægges tilbage med næbbet mod vingen. Mindst to ænder forbliver aktive. Et pastakast afbryder pauserne, og hannen genoptager sin vagtrolle. De første pudsepauser kan optræde efter cirka 35 sekunder; søvn følger i senere pauser. Tiderne, fordelingen og bevægelserne er foreløbige animationsvalg. Sovestillingen er ikke sikkert observeret i de hidtil gennemgåede klip.
 
 ## Nye videoer til kalibrering
+
+### Muskelbaseret bevægelseslæring — forskningsreference
+
+Ejerens [YouTube-reference](https://www.youtube.com/watch?v=pgaEE27nsQw) er til *Flexible Muscle-Based Locomotion for Bipedal Creatures* (Geijtenbeek, van de Panne og van der Stappen, SIGGRAPH Asia 2013). [Forfatternes projektside](https://www.cs.ubc.ca/~van/papers/2013-TOG-MuscleBasedBipeds/index.html) og [artikel](https://www.cs.ubc.ca/~van/papers/2013-TOG-MuscleBasedBipeds/2013-TOG-MuscleBasedBipeds.pdf).
+
+Metoden optimerer styring, muskelforløb og muskelegenskaber inden for en angivet model. Den kan finde gangmønstre uden optagede referencebevægelser og kræver en tilnærmet skabelon for muskelvedhæftninger frem for en fuldt kendt anatomi. Det er et relevant spor til et separat forsøg med én fysisk løbeand. Resultaterne er ikke validering af andeanatomi eller garanti for en korrekt andegang. Den nuværende DuckTV-kode anvender endnu ikke denne metode. Referencen er kontrolleret via forskernes artikel; videoen er ikke gennemgået billede for billede eller hentet lokalt.
 
 ### Bevægelsesreferencer: løb og fødesøgning
 

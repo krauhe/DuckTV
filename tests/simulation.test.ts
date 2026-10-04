@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { BEHAVIOR, Simulation } from '../src/simulation.ts';
 import { GARDEN, POND } from '../src/types.ts';
-import { DYNAMICS } from '../src/dynamics';
+import { DYNAMICS, HOP_GRAVITY } from '../src/dynamics';
 
 function seeded(seed = 42): () => number {
   let value = seed >>> 0;
@@ -15,6 +15,31 @@ function seeded(seed = 42): () => number {
 function advance(sim: Simulation, seconds: number): void {
   for (let remaining = seconds; remaining > 0; remaining -= 0.1) sim.update(Math.min(remaining, 0.1));
 }
+
+test('pond flights follow gravity, clear the rim, and signal a single water landing',()=>{
+ const sim=new Simulation(seeded(99));
+ const samples=new Map<string,number[]>();
+ let flights=0,landings=0,rimChecks=0;
+ for(let i=0;i<15000;i++){
+  const entries=sim.ducks.map(d=>d.waterEntries);
+  sim.update(.01);
+  sim.ducks.forEach((d,index)=>{
+   if(d.waterEntries>entries[index]){
+    assert.equal(d.waterEntries,entries[index]+1);assert.equal(d.state,'swim');
+    assert.equal(d.y,POND.waterY);assert.ok(d.landing>.9);landings++;
+   }
+   if(d.jumpProgress<0){samples.delete(d.id);return}
+   const ys=samples.get(d.id)??[];
+   if(!ys.length)flights++;
+   ys.push(d.y);if(ys.length>3)ys.shift();samples.set(d.id,ys);
+   if(ys.length===3)assert.ok(Math.abs((ys[2]-2*ys[1]+ys[0])/.0001+HOP_GRAVITY)<1e-6);
+   if(Math.abs(Math.hypot(d.x-POND.x,d.z-POND.z)-1.56)<.05){
+    assert.ok(d.y>POND.rimY+.04,'feet clear the physical rim');rimChecks++;
+   }
+  });
+ }
+ assert.ok(flights>=6&&landings>=3&&rimChecks>=6);
+});
 
 test('all ducks preen and sleep individually; food wakes them and restores the guard',()=>{
  const sim=new Simulation(seeded(18));

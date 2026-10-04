@@ -1,5 +1,5 @@
 import { GARDEN, POND, type DuckKind, type DuckState, type Vec2 } from './types';
-import { drive, DYNAMICS } from './dynamics';
+import { drive, DYNAMICS, HOP_GRAVITY, planHop } from './dynamics';
 
 /** Tunable scene timings and distances, in seconds and world units. */
 export const BEHAVIOR = {
@@ -45,7 +45,7 @@ export const BEHAVIOR = {
   pondVisitMax: 48,
   swimMin: 6,
   swimMax: 10,
-  rimCrossSeconds: 1.8,
+  hopPreparation: .14,
   rimClearance: 0.16,
   waterEdgeMargin: 0.51,
   guardScanRate: 1.27,
@@ -74,6 +74,10 @@ export interface Duck {
   inertia:number;
   vx:number;vz:number;ax:number;az:number;
   angularVelocity:number;
+  jumpProgress:number;
+  crouch:number;
+  landing:number;
+  waterEntries:number;
   id: string;
   kind: DuckKind;
   x: number;
@@ -116,6 +120,7 @@ interface Intent {
   moved:boolean;
   crossingFrom?: Vec2;
   crossingY?: number;
+  landedAt:number;
   comfortAt: number;
   comfortUntil: number;
   comfortCount: number;
@@ -194,12 +199,13 @@ export class Simulation {
       const start = starts[index];
       const duck: Duck = {
         mass:[2,1.7,1.85,1.8][index],inertia:[2,1.7,1.85,1.8][index]*.12,vx:0,vz:0,ax:0,az:0,angularVelocity:0,
+        jumpProgress:-1,crouch:0,landing:0,waterEntries:0,
         id: kind, kind, x: start.x, z: start.z, y: 0,
         heading: start.heading, state: kind === 'drake' ? 'guard' : 'wander',
         speed: 0, look: 0, peck: 0, upright: 1, headTilt: 0, displayDip: 0,
       };
       this.intents.set(duck.id, {
-        moved:false,
+        moved:false,landedAt:-Infinity,
         comfortAt: BEHAVIOR.comfortFirstAt + index * 9,
         comfortUntil: 0, comfortCount: 0,
         headingTarget: start.heading, guardMoving: false, idleFor: 0,
@@ -266,6 +272,7 @@ export class Simulation {
     for (const duck of this.ducks) {
       const intent = this.intents.get(duck.id)!;
       intent.moved=false;
+      duck.landing*=Math.exp(-dt*14);
       if (this.courtship && (duck.kind === 'drake' || duck.id === this.courtship.partnerId)) {
         const partner = this.ducks.find(other => duck.kind === 'drake' ? other.id === this.courtship!.partnerId : other.kind === 'drake')!;
         duck.state = duck.kind === 'drake' ? 'guard' : 'rest';
@@ -520,13 +527,16 @@ export class Simulation {
     if (t >= 1) {
       duck.state = 'swim';
       duck.y = POND.waterY;
+      duck.waterEntries++;
       intent.swimUntil = this.time + this.range(BEHAVIOR.swimMin, BEHAVIOR.swimMax);
       intent.target = this.swimTarget();
     }
   }
 
   private swim(duck: Duck, intent: Intent, dt: number): void {
-    duck.y = POND.waterY + BEHAVIOR.swimBobHeight * Math.sin(this.time * BEHAVIOR.swimBobRate);
+    const afloat=this.time-intent.landedAt;
+    duck.y = POND.waterY + BEHAVIOR.swimBobHeight * Math.sin(afloat * BEHAVIOR.swimBobRate)*(1-Math.exp(-afloat*3))
+      -.035*Math.sin(afloat*18)*Math.exp(-afloat*8);
     duck.look = BEHAVIOR.swimLookRange * Math.sin(this.time * BEHAVIOR.swimLookRate);
     const wantsExit=this.time>=intent.swimUntil;
     const nextToExit=this.ducks.find(other=>other.state==='swim'&&this.time>=this.intents.get(other.id)!.swimUntil);
@@ -559,20 +569,35 @@ export class Simulation {
     }
   }
 
-  /** The step over the rim remains a guided arc, with smooth endpoints. */
+  /** Short crouch, takeoff impulse, then an un-eased ballistic flight under gravity. */
   private crossPond(duck:Duck,intent:Intent,to:Vec2,endY:number,dt:number):number{
     intent.moved=true;
     intent.crossingFrom??={x:duck.x,z:duck.z};intent.crossingY??=duck.y;
-    intent.crossTime=Math.min(BEHAVIOR.rimCrossSeconds,intent.crossTime+dt);
-    const t=intent.crossTime/BEHAVIOR.rimCrossSeconds;
-    const blend=t*t*t*(10+t*(-15+6*t));
-    const rate=30*t*t*(1-t)*(1-t)/BEHAVIOR.rimCrossSeconds;
+    intent.headingTarget=Math.atan2(to.x-intent.crossingFrom.x,to.z-intent.crossingFrom.z);
+    const turn=Math.atan2(Math.sin(intent.headingTarget-duck.heading),Math.cos(intent.headingTarget-duck.heading));
+    if(intent.crossTime<BEHAVIOR.hopPreparation&&(Math.abs(turn)>.2||Math.abs(duck.angularVelocity)>.8)){
+      intent.crossTime=Math.min(intent.crossTime+dt,BEHAVIOR.hopPreparation-.00001);
+      duck.crouch=Math.sin(intent.crossTime/BEHAVIOR.hopPreparation*Math.PI/2);
+      duck.vx=0;duck.vz=0;duck.speed=0;duck.ax=0;duck.az=0;
+      return 0;
+    }
+    intent.crossTime+=dt;
+    if(intent.crossTime<BEHAVIOR.hopPreparation){
+      duck.crouch=Math.sin(intent.crossTime/BEHAVIOR.hopPreparation*Math.PI/2);
+      duck.vx=0;duck.vz=0;duck.speed=0;duck.ax=0;duck.az=0;
+      return 0;
+    }
+    const hop=planHop(intent.crossingY,endY,POND.rimY+BEHAVIOR.rimClearance,duck.mass);
+    const elapsed=Math.min(hop.duration,intent.crossTime-BEHAVIOR.hopPreparation);
+    const t=elapsed/hop.duration;
     const from=intent.crossingFrom;
-    const vx=(to.x-from.x)*rate,vz=(to.z-from.z)*rate;
+    const vx=(to.x-from.x)/hop.duration,vz=(to.z-from.z)/hop.duration;
     duck.ax=(vx-duck.vx)/dt;duck.az=(vz-duck.vz)/dt;
     duck.vx=vx;duck.vz=vz;duck.speed=Math.hypot(vx,vz);
-    duck.x=mix(from.x,to.x,blend);duck.z=mix(from.z,to.z,blend);
-    duck.y=mix(intent.crossingY,endY,blend)+(POND.rimY+BEHAVIOR.rimClearance)*Math.sin(Math.PI*t)**2;
+    duck.crouch=0;duck.jumpProgress=t;
+    duck.x=mix(from.x,to.x,t);duck.z=mix(from.z,to.z,t);
+    duck.y=intent.crossingY+(hop.impulse/duck.mass)*elapsed-.5*HOP_GRAVITY*elapsed*elapsed;
+    if(t>=1){duck.y=endY;duck.jumpProgress=-1;duck.landing=1;intent.landedAt=this.time}
     return t;
   }
 

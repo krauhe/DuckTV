@@ -1,6 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {drive,DYNAMICS,Spring} from '../src/dynamics';
+import {drive,DYNAMICS,Spring,planHop,HOP_GRAVITY} from '../src/dynamics';
+
+test('a hop clears its apex and reaches water under gravity, independently of mass',()=>{
+ for(const [start,end] of [[0,.27],[.27,0]]){
+  for(const mass of [1.7,2]){
+   const hop=planHop(start,end,.56,mass),vy=hop.impulse/mass;
+   const height=(t:number)=>start+vy*t-.5*HOP_GRAVITY*t*t;
+   assert.ok(hop.duration>.45&&hop.duration<.7,'short flight instead of a floating transition');
+   assert.ok(Math.abs(height(vy/HOP_GRAVITY)-.56)<1e-10);
+   assert.ok(Math.abs(height(hop.duration)-end)<1e-10);
+   assert.ok(vy-HOP_GRAVITY*hop.duration<0,'landing has downward momentum');
+  }
+ }
+ assert.equal(planHop(0,.27,.56,1.7).duration,planHop(0,.27,.56,2).duration);
+});
 
 test('steering force bounds acceleration during starts, reversals and braking',()=>{
  for(const mass of [1.7,2]){
