@@ -2,6 +2,18 @@
 
 [Åbn Ande TV](https://krauhe.github.io/DuckTV/) · [QR-kode til udskrift](https://krauhe.github.io/DuckTV/ande-tv-qr-print.pdf)
 
+## Vores fire ænder — fra foto til 3D
+
+Ande TV er modelleret efter vores egne fire løbeænder: tre hunner og én han. Her er modellerne stillet op som på referencefotoet, så farver, tegninger og individer kan sammenlignes direkte.
+
+| Vores ænder · referencefoto | De fire modeller i Ande TV |
+| :---: | :---: |
+| ![De fire ænder i haven: mønstret hun bagest til venstre, lys hun forrest, han bagest i midten og broget hun til højre](docs/images/vores-aender-foto.jpg) | ![De samme fire individer gengivet med projektets 3D-modeller i tilsvarende opstilling](docs/images/vores-aender-modeller.png) |
+
+**Mønstret hun:** mørke fjermidter og lys halsmarkering · **Lys hun:** varmere, lysere fjerdragt · **Han:** mørkt hoved og lys halsring · **Broget hun:** hvid hals og uregelmæssige mørke felter.
+
+Foto: eget referencefoto `_KRH3466`. Modelbilledet er renderet direkte fra Ande TV; opstillingen er tilpasset fotoet. Modellerne er stiliserede og videreudvikles med vores fotos og videoer som reference.
+
 En browserprototype med fire løbeænder, græs, et blåt muslingebassin og justerbart vejr. Klik på græsset for at kaste pastaskruer. Hunnerne tøver og nærmer sig; hannen holder vagt og spiser aldrig. Hold venstre museknap og træk for at dreje kameraet; hold højre og træk for at flytte udsigten. Musehjulet zoomer. Piltast op/ned bevæger kameraet frem/tilbage langs græsset; venstre/højre panorerer sidelæns i forhold til synsretningen. Piltasterne afbryder automatisk kameraføring og respekterer havens grænser. Et kort venstreklik (højst 350 ms) kaster pasta på det valgte sted på græsset. Et kameratræk udløser aldrig et kast.
 
 Haven har et aktivt areal på 10,5 × 8 sceneenheder og hæk på alle fire sider. Kameraet holdes inden for haven og højst 1,65 enheder over græsset, under hækkens top. Den hvide ands sorte hovedpletter er farvet på issen uden udstående geometri.

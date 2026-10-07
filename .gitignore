@@ -51,3 +51,7 @@ Thumbs.db
 
 !public/ande-tv-qr.png
 !public/ande-tv-qr-print.png
+
+# Owner-requested README comparison: only these two images are public.
+!docs/images/vores-aender-foto.jpg
+!docs/images/vores-aender-modeller.png
