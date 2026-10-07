@@ -1,4 +1,5 @@
 import './style.css';
+import {startAnalytics} from './analytics';
 import {gardenGroundHeight} from './shelter';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -17,6 +18,7 @@ import { getDaylight, formatTime } from './daylight';
 import {initialPreferences,writePreferences,type Preferences} from './preferences';
 
 const $=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
+startAnalytics();
 let preferenceStorage:Storage|undefined;
 try{preferenceStorage=localStorage;}catch{/* Storage may be disabled. */}
 const preferences=initialPreferences(preferenceStorage,new Date());
