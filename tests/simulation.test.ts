@@ -17,6 +17,20 @@ function advance(sim: Simulation, seconds: number): void {
   for (let remaining = seconds; remaining > 0; remaining -= 0.1) sim.update(Math.min(remaining, 0.1));
 }
 
+test('startup activities vary, remain valid for land, and retain their initial bout',()=>{
+ const states=new Set<string>(),lineups=new Set<string>();
+ for(let seed=1;seed<=16;seed++){
+  const sim=new Simulation(seeded(seed*7919));
+  lineups.add(sim.ducks.map(d=>d.state).join(','));
+  const initial=sim.ducks.map(d=>d.state);
+  for(const duck of sim.ducks){states.add(duck.state);assert.ok(['guard','wander','rest','forage','preen'].includes(duck.state));assert.equal(duck.y,0);assert.equal(duck.jumpProgress,-1);}
+  sim.update(.02);
+  sim.ducks.forEach((duck,i)=>{if(['preen','forage','rest'].includes(initial[i]))assert.equal(duck.state,initial[i],'initial activity must not be cancelled on the first frame');});
+ }
+ assert.ok(lineups.size>8);for(const state of ['guard','wander','rest','forage','preen'])assert.ok(states.has(state));
+ assert.deepEqual(new Simulation(seeded(91)).ducks,new Simulation(seeded(91)).ducks,'seeded tests remain reproducible');
+});
+
 test('food beside the camera tempts the flock without drawing it inside the preferred metre',()=>{
  const sim=new Simulation(seeded(71));
  sim.setViewer(-3,-2);
@@ -147,15 +161,14 @@ test('female ducks notice, approach, and consume food; the drake never does', ()
     assert.notEqual(drake.state, 'eat');
     if (foodAvailable) {
       assert.equal(drake.state, 'guard');
-      assert.equal(drake.peck, 0);
+      assert.ok(drake.peck>=0&&drake.peck<=1,'guard may briefly probe the grass');
     }
   }
   assert.ok(femaleStates.has('notice'));
   assert.ok(femaleStates.has('approach'));
   assert.ok(femaleStates.has('eat'));
   assert.ok(eaten);
-  assert.ok(firstApproach.get('buff')! < firstApproach.get('brown')!);
-  assert.ok(firstApproach.get('brown')! < firstApproach.get('pied')!);
+  assert.equal(firstApproach.size,3,'all females can independently approach');
 });
 
 test('spontaneous ground foraging and faster low-neck chases yield to feeding', () => {
@@ -177,7 +190,7 @@ test('spontaneous ground foraging and faster low-neck chases yield to feeding', 
     }
     const activity = sim.ducks.find(d => ['chase','forage'].includes(d.state) && !interrupted.has(d.state));
     // Let each activity establish its pose before checking interruption.
-    if (activity && (activity.state === 'chase' ? ranLow : probed)) {
+    if (activity && chased && ranLow && (activity.state === 'chase' ? ranLow : probed)) {
       interrupted.add(activity.state);
       assert.equal(sim.castFood(-1,1),true);
       sim.update(.025);
@@ -236,10 +249,17 @@ test('wandering and pond visits remain finite and inside the garden', () => {
   const sim = new Simulation(seeded(99));
   const seen = new Set<string>();
   const swimmers = new Set<string>();
+  const entrySectors=new Set<number>();
+  const previousEntries=new Map<string,number>();
   let clearedRim = false;
   for (let i = 0; i < 2200; i++) {
     sim.update(0.1);
     for (const duck of sim.ducks) {
+      if(duck.waterEntries>(previousEntries.get(duck.id)??0)){
+        const angle=Math.atan2(duck.z-POND.z,duck.x-POND.x);
+        entrySectors.add(Math.floor((angle+Math.PI)/(Math.PI/4))%8);
+      }
+      previousEntries.set(duck.id,duck.waterEntries);
       seen.add(duck.state);
       if (duck.state === 'swim') {
         swimmers.add(duck.kind);
@@ -269,6 +289,7 @@ test('wandering and pond visits remain finite and inside the garden', () => {
   }
   for (const state of ['enter', 'swim', 'exit']) assert.ok(seen.has(state), `missing pond state ${state}`);
   assert.ok(clearedRim, 'ducks must visibly lift over the pond rim');
+  assert.ok(entrySectors.size>=3,`bath entries should use different sides, got ${entrySectors.size}`);
   assert.deepEqual([...swimmers].sort(), ['brown', 'buff', 'drake', 'pied']);
   assert.ok(sim.ducks.some(duck => duck.kind !== 'drake' && duck.state !== 'swim'));
 });
@@ -310,7 +331,8 @@ test('courtship dips repeat at three seconds; a female can reply or decline; foo
     assert.equal(sim.courtship, null);
     assert.ok(sim.ducks.every(d => d.displayDip === 0));
     sim.reset();
-    assert.ok(sim.ducks.every(d => d.upright === 1 && d.headTilt === 0));
+    assert.ok(sim.ducks.every(d => d.headTilt === 0 && d.displayDip === 0 &&
+      d.upright === (d.state==='forage'||d.state==='preen'?0:1)));
   }
 });
 

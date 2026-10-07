@@ -17,10 +17,9 @@
    </section><section><h2>Vejr og billede</h2>
    <label for="weather">Vejret i haven</label><select id="weather"><option value="live" selected>Følg vejret i Gistrup</option><option value="sun">Sol og lette skyer</option><option value="cloud">Overskyet</option><option value="rain">En stille regnbyge</option></select>
    <p id="weather-label" class="settings-note">En rolig dag</p>
-   </section><section><h2>Lyd og kamera</h2>
-   <button id="sound-toggle" aria-label="Slå andelyd til" aria-pressed="false">Lyd fra</button>
-   <label for="auto-follow"><input id="auto-follow" type="checkbox" checked/> Følg flokken automatisk efter en pause</label>
-   <div class="dock-actions"><button id="fullscreen">Fuld skærm</button></div>
+   </section><section><h2>Kamera</h2>
+   <label class="switch-row" for="auto-follow"><span>Følg flokken</span><span class="switch-state" aria-hidden="true"></span><input id="auto-follow" type="checkbox" role="switch" checked/><span class="switch-track" aria-hidden="true"></span></label>
+   <label class="switch-row" for="fullscreen"><span>Fuld skærm</span><span class="switch-state" aria-hidden="true"></span><input id="fullscreen" type="checkbox" role="switch"/><span class="switch-track" aria-hidden="true"></span></label>
    </section></div>
    <p class="settings-note desktop-help">Klik: pasta · venstre træk: drej · højre træk: flyt · piltaster: gå rundt</p>
    <p class="settings-note touch-help">Tryk kort: pasta · én finger: drej · to fingre: flyt og zoom</p>

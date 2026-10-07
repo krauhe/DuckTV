@@ -13,7 +13,6 @@ import { GARDEN, POND } from './types';
 import { FeedGesture } from './pointer-gesture';
 import { constrainGardenCamera } from './camera-bounds';
 import { CameraFollow } from './camera-follow';
-import { DuckAudio } from './duck-audio';
 import { getDaylight, formatTime } from './daylight';
 import {initialPreferences,writePreferences,type Preferences} from './preferences';
 
@@ -21,13 +20,11 @@ const $=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
 let preferenceStorage:Storage|undefined;
 try{preferenceStorage=localStorage;}catch{/* Storage may be disabled. */}
 const preferences=initialPreferences(preferenceStorage,new Date());
-declare const __DUCK_AUDIO_AVAILABLE__:boolean;
-if(!__DUCK_AUDIO_AVAILABLE__){preferences.sound=false;$('sound-toggle').hidden=true;}
 const savePreferences=()=>{if(preferenceStorage)writePreferences(preferenceStorage,preferences);};
 $<HTMLSelectElement>('weather').value=preferences.weather;
 $<HTMLSelectElement>('time-mode').value=preferences.timeMode;
 $<HTMLInputElement>('auto-follow').checked=preferences.autoFollow;
-$('auto-follow').addEventListener('change',()=>{preferences.autoFollow=$<HTMLInputElement>('auto-follow').checked;savePreferences();});
+$('auto-follow').addEventListener('change',()=>{preferences.autoFollow=$<HTMLInputElement>('auto-follow').checked;cameraFollow.reset();savePreferences();});
 const canvas=$<HTMLCanvasElement>('garden');
 const loading=$('loading');
 let renderer:THREE.WebGLRenderer;
@@ -120,26 +117,6 @@ pointerRing.rotation.x=-Math.PI/2;pointerRing.position.y=.025;pointerRing.visibl
 const pointAt=(clientX:number,clientY:number)=>{const r=canvas.getBoundingClientRect();mouse.set((clientX-r.left)/r.width*2-1,-(clientY-r.top)/r.height*2+1);raycaster.setFromCamera(mouse,camera);return raycaster.intersectObject(environment.ground,false)[0]?.point};
 
 
-const duckAudio=new DuckAudio(()=>{syncSoundButton();});
-function syncSoundButton(){
- const button=$('sound-toggle');
- button.textContent=duckAudio.active?'Lyd til':'Lyd fra';
- button.setAttribute('aria-pressed',String(duckAudio.active));
- button.setAttribute('aria-label',duckAudio.active?'Slå andelyd fra':'Slå andelyd til');
-}
-let pendingSound=preferences.sound;
-if(pendingSound){$('sound-toggle').textContent='Lyd til · afventer klik';$('sound-toggle').setAttribute('aria-pressed','true');}
-$('sound-toggle').addEventListener('click',()=>{
- if(pendingSound){pendingSound=false;preferences.sound=false;}
- else{duckAudio.toggle(performance.now()/1000);preferences.sound=duckAudio.active;}
- savePreferences();syncSoundButton();
-});
-const restoreSound=(event:Event)=>{
- if(!pendingSound||event.target instanceof Element&&event.target.closest('#sound-toggle'))return;
- pendingSound=false;duckAudio.toggle(performance.now()/1000);syncSoundButton();
-};
-document.addEventListener('pointerdown',restoreSound);
-document.addEventListener('keydown',restoreSound);
 function cast(x:number,z:number){return sim.castFood(x,z)}
 const feedGesture=new FeedGesture();
 canvas.addEventListener('pointerdown',e=>feedGesture.down(e.pointerId,e.button,e.clientX,e.clientY,performance.now()));
@@ -149,7 +126,16 @@ canvas.addEventListener('pointercancel',e=>feedGesture.cancel(e.pointerId));
 canvas.addEventListener('lostpointercapture',e=>feedGesture.cancel(e.pointerId));
 addEventListener('blur',()=>feedGesture.reset());
 canvas.addEventListener('pointerup',e=>{if(!feedGesture.up(e.pointerId,e.button,e.clientX,e.clientY,performance.now()))return;const p=pointAt(e.clientX,e.clientY);if(p)cast(p.x,p.z)});
-$('fullscreen').addEventListener('click',async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await $('app').requestFullscreen()}catch{console.warn('Fuld skærm er ikke tilgængelig i denne browser.')}});
+const fullscreenSwitch=$<HTMLInputElement>('fullscreen');
+const syncFullscreen=()=>{fullscreenSwitch.checked=!!document.fullscreenElement;};
+fullscreenSwitch.addEventListener('change',async()=>{
+ try{if(fullscreenSwitch.checked&&!document.fullscreenElement)await $('app').requestFullscreen();else if(!fullscreenSwitch.checked&&document.fullscreenElement)await document.exitFullscreen();}
+ catch{console.warn('Fuld skærm er ikke tilgængelig i denne browser.');}
+ finally{syncFullscreen();}
+});
+document.addEventListener('fullscreenchange',syncFullscreen);
+if(!document.fullscreenEnabled)fullscreenSwitch.closest('label')!.hidden=true;
+
 const dock=$('settings'),dockContent=$('dock-content');
 let dockPinned=false;
 function showDock(open:boolean){dock.classList.toggle('open',open);dockContent.inert=!open;$('dock-toggle').setAttribute('aria-expanded',String(open));}
@@ -196,7 +182,8 @@ async function weatherChanged(){
  catch{if(generation!==weatherGeneration)return;$('weather-label').textContent='Gistrup · vejr utilgængeligt'}
 }
 $('weather').addEventListener('change',()=>{preferences.weather=$<HTMLSelectElement>('weather').value as Preferences['weather'];savePreferences();void weatherChanged();});
-setInterval(()=>{if($<HTMLSelectElement>('weather').value==='live'&&!document.hidden)void weatherChanged()},15*60_000);
+setInterval(()=>{if($<HTMLSelectElement>('weather').value==='live'&&!document.hidden)void weatherChanged()},5*60_000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&$<HTMLSelectElement>('weather').value==='live')void weatherChanged();});
 void weatherChanged();
 addEventListener('resize',()=>{fitCameraWidth();applyQuality()});
 let last=performance.now();
@@ -211,7 +198,6 @@ function frame(now:number){
  sim.setViewer(camera.position.x,camera.position.z);
  updateDaylight(dt);sim.update(dt);environment.update(sim.time,dt);environment.setShelterDoor(sim.shelterDoor.closed);
  eggs.update(sim.time,dt,sim.ducks,camera);forageHoles.update(sim.time);
- duckAudio.update(now/1000,sim.ducks.some(d=>d.state!=='sleep'),Math.min(...sim.ducks.filter(d=>d.state!=='sleep').map(d=>Math.hypot(d.x-camera.position.x,d.z-camera.position.z))));
  for(let i=0;i<sim.ducks.length;i++){
   const d=sim.ducks[i],m=duckModels[i];m.group.position.set(d.x,d.y,d.z);m.group.rotation.y=d.heading;
   const fly=insects[i];fly.group.visible=!!d.insect;
@@ -220,8 +206,11 @@ function frame(now:number){
    fly.group.rotation.y=Math.sin(sim.time*.7+i)*.6;
    fly.wings.forEach((wing,index)=>wing.rotation.z=(index?1:-1)*Math.sin(sim.time*67)*.7);
   }
-  m.animate({mouthOpen:d.mouthOpen,groundHeight:gardenGroundHeight,waterBob:d.state==='swim'?d.y-POND.waterY:0,speed:d.speed,time:sim.time+i*1.71,state:d.state,look:d.look,peck:d.peck,upright:d.upright,headTilt:d.headTilt,displayDip:d.displayDip,accelerationForward:d.ax*Math.sin(d.heading)+d.az*Math.cos(d.heading),accelerationSide:d.ax*Math.cos(d.heading)-d.az*Math.sin(d.heading),jumpProgress:d.jumpProgress,crouch:d.crouch,landing:d.landing});
-  if(d.state==='forage'&&d.speed<.06&&d.peck>.65){m.group.updateMatrixWorld(true);m.group.getObjectByName('duck-head')!.localToWorld(forageTip.set(0,.036,.30));forageHoles.probe(forageTip,sim.time,dt);}
+  m.setDetailDistance(m.group.position.distanceTo(camera.position));
+  m.animate({preenTarget:d.preenTarget,gesture:d.gesture,mouthOpen:d.mouthOpen,groundHeight:gardenGroundHeight,waterBob:d.state==='swim'?d.y-POND.waterY:0,speed:d.speed,time:sim.time+i*1.71,state:d.state,look:d.look,peck:d.peck,upright:d.upright,headTilt:d.headTilt,displayDip:d.displayDip,accelerationForward:d.ax*Math.sin(d.heading)+d.az*Math.cos(d.heading),accelerationSide:d.ax*Math.cos(d.heading)-d.az*Math.sin(d.heading),jumpProgress:d.jumpProgress,crouch:d.crouch,landing:d.landing});
+  m.group.updateMatrixWorld(true);
+  m.group.getObjectByName('duck-head')!.localToWorld(forageTip.set(0,.036,.30));
+  forageHoles.contact(d.id,forageTip,sim.time,dt,d.state==='forage'&&d.speed<.06&&d.peck>.65);
   if(d.waterEntries>seenWaterEntries[i])environment.ripple(d.x,d.z,1.6);
   seenWaterEntries[i]=d.waterEntries;
   if(d.state==='swim'&&Math.random()<dt*3)environment.ripple(d.x,d.z,.25);
@@ -230,12 +219,20 @@ function frame(now:number){
  }
  const liveIds=new Set<string>();
  for(const f of sim.foods){
-  if(f.eaten)continue;liveIds.add(f.id);let mesh=foods.get(f.id);
+  if(f.eaten&&!f.carriedBy)continue;liveIds.add(f.id);let mesh=foods.get(f.id);
   if(!mesh){mesh=new THREE.Mesh(pastaGeometry,pastaMaterial);mesh.castShadow=true;foods.set(f.id,mesh);foodRotations.set(f.id,Math.random()*Math.PI*2);scene.add(mesh)}
   const t=Math.min(f.age/.65,1),angle=foodRotations.get(f.id)||0;
   const y=t<1?.045+(1-t)*2.2+Math.sin(t*Math.PI)*1.2:.045;
   mesh.position.set(f.x+(1-t)*.6,y,f.z+(1-t)*1.4);
   mesh.rotation.set(Math.PI/2+(1-t)*4,angle,(1-t)*3);
+  if(f.carriedBy){
+   const index=sim.ducks.findIndex(d=>d.id===f.carriedBy);
+   if(index>=0){const head=duckModels[index].group.getObjectByName('duck-head')!;
+    head.updateWorldMatrix(true,false);head.localToWorld(mesh.position.set(0,.02,.29));
+    head.getWorldQuaternion(mesh.quaternion);
+    mesh.rotateZ(Math.PI/2+Math.sin(sim.time*11)*.12);
+   }
+  }
  }
  for(const [id,mesh] of foods)if(!liveIds.has(id)){scene.remove(mesh);foods.delete(id);foodRotations.delete(id)}
  renderer.render(scene,camera);
@@ -248,7 +245,7 @@ function finishCrt(){
 }
 canvas.addEventListener('animationend',event=>{if(event.animationName==='crt-picture'||event.animationName==='crt-reduced')finishCrt();});
 renderer.setAnimationLoop(frame);
-document.addEventListener('visibilitychange',()=>{last=performance.now();if(document.hidden){duckAudio.stop();cameraKeys.clear();}});
+document.addEventListener('visibilitychange',()=>{last=performance.now();if(document.hidden){cameraKeys.clear();}});
 // Read-only diagnostics for repeatable browser tests, not part of the visible UI.
 Object.assign(window,{__andeTV:{sim,scene,camera,renderer,project:(x:number,z:number)=>{const p=new THREE.Vector3(x,0,z).project(camera);return {x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2}}}});
 

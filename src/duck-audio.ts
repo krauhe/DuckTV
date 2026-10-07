@@ -1,47 +1,45 @@
-/** Short excerpts of the owner's recording; never play before an explicit click. */
+import type {Duck} from './simulation';
+type Event='call'|'chat'|'entry'|'exit';
+const files={call:['duck-1.wav','duck-2.wav','duck-3.wav'],chat:['chat.wav'],entry:['entry.wav'],exit:['exit.wav']};
+/** Owner-prepared clips respond to visible actions, never a background quack timer. */
 export class DuckAudio {
- private audio: HTMLAudioElement | undefined;
- private enabled = false;
- private pending = false;
- private next = 0;
- private clip = -1;
- constructor(private readonly onError: () => void) {}
-
- get active() { return this.enabled; }
-
- toggle(now: number) {
-  this.enabled = !this.enabled;
-  if (this.enabled) this.play(now);
-  else this.stop();
+ private enabled=false;
+ private channels=new Map<string,HTMLAudioElement>();
+ private next=new Map<string,number>();
+ private previous=new Map<string,{entries:number;state:string;jumping:boolean;display:boolean}>();
+ private clip=-1;
+ constructor(private readonly onError:()=>void){}
+ get active(){return this.enabled;}
+ toggle(now:number){this.enabled=!this.enabled;if(this.enabled)this.event('call',now,2);else this.stop();}
+ stop(){for(const audio of this.channels.values()){audio.pause();audio.currentTime=0;}this.channels.clear();}
+ event(kind:Event,now:number,distance:number){
+  if(!this.enabled||document.hidden)return;
+  const channel=kind==='entry'||kind==='exit'?'water':'voice';
+  if(now<(this.next.get(channel)??0))return;
+  const previous=this.channels.get(channel);if(previous&&!previous.paused)return;
+  const choices=files[kind];
+  if(kind==='call')this.clip=(this.clip+1+Math.floor(Math.random()*2))%choices.length;
+  const file=choices[kind==='call'?this.clip:0];
+  const audio=new Audio(new URL(`audio/events/${file}`,document.baseURI).href);
+  audio.volume=Math.max(.04,Math.min(channel==='water'?.45:.35,.65/Math.max(1,distance)));
+  this.channels.set(channel,audio);this.next.set(channel,now+(channel==='water'?.6:7));
+  void audio.play().then(()=>{if(!this.enabled||document.hidden)audio.pause();}).catch(()=>{
+   if(this.channels.get(channel)!==audio)return;
+   this.enabled=false;this.stop();this.onError();
+  });
  }
-
- stop() {
-  this.audio?.pause();
-  if (this.audio) this.audio.currentTime = 0;
- }
-
- update(now: number, awake: boolean, distance: number) {
-  if (!this.enabled || document.hidden) return;
-  if (this.audio) this.audio.volume = Math.max(.06, Math.min(.38, .7 / Math.max(1, distance)));
-  if (!awake) { this.stop(); this.next = now + 6; return; }
-  if (!this.pending && now >= this.next && (!this.audio || this.audio.paused)) this.play(now);
- }
-
- private play(now: number) {
-  this.stop();
-  // No overlapping calls and no immediate repeat of the same recording.
-  this.clip = (this.clip + 1 + Math.floor(Math.random() * 2)) % 3;
-  this.audio = new Audio(new URL(`audio/duck-${this.clip + 1}.wav`, document.baseURI).href);
-  this.audio.volume = .25;
-  this.next = now + 12 + Math.random() * 16;
-  this.pending = true;
-  const playing = this.audio;
-  void playing.play().then(() => {
-   if (!this.enabled || document.hidden || playing !== this.audio) playing.pause();
-  }).catch(() => {
-   if (playing !== this.audio) return;
-   this.enabled = false;
-   this.onError();
-  }).finally(() => { this.pending = false; });
+ update(now:number,ducks:ReadonlyArray<Duck>,viewer:{x:number;z:number}){
+  if(document.hidden||ducks.every(d=>d.state==='sleep'))this.stop();
+  for(const d of ducks){
+   const before=this.previous.get(d.id),jumping=d.jumpProgress>=0,display=d.displayDip>.15;
+   const distance=Math.hypot(d.x-viewer.x,d.z-viewer.z);
+   if(before){
+    if(d.waterEntries>before.entries)this.event('entry',now,distance);
+    else if(d.state==='exit'&&jumping&&!before.jumping)this.event('exit',now,distance);
+    else if(display&&!before.display)this.event('chat',now,distance);
+    else if(d.state==='notice'&&before.state!=='notice')this.event('call',now,distance);
+   }
+   this.previous.set(d.id,{entries:d.waterEntries,state:d.state,jumping,display});
+  }
  }
 }

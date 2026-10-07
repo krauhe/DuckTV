@@ -367,3 +367,28 @@ Kameraet følger straks flokken ved start, når automatisk følgefunktion er sl�
 
 
 Første besøg om aftenen/natten starter klokken 14 i haven, så ænderne er vågne. Vejret følger stadig Gistrup. Et gyldigt gemt tidsvalg (også realtid) har forrang; om dagen følger nye besøg tiden nu. Vælg »Følg tiden i Gistrup« under Indstillinger for at bruge den faktiske lokale tid.
+
+Ejerens nye lydklip fra sound/ er indsat som hændelseslyde: duck1/duck2/duck4 ved reaktion på pasta, ducks chatting ved parringsinvitation, duck and water 2 ved landing i vand og water 3 ved afsæt ud af bassin. Udvælgelsen er baseret på filnavne og WAV-metadata, ikke en lyttebedømmelse. De udvalgte kopier ligger i public/audio/events/ og er tilladt i Git; originaler, Untitled og den lange water1-optagelse forbliver private. Lyd kræver aktivt tilvalg og stoppes ved søvn eller skjult fane. Der er separate kanaler og pauser for vand og stemmer, så samme hændelse ikke gentages hvert billede.
+
+
+Lyden er taget ud af pauseskærmen igen efter ejerens ønske. Lydfilerne bevares lokalt og er Git-ignorerede. Kameraets til/fra-valg vises som switches med faste labels og grøn baggrund i aktiv tilstand.
+
+
+## Referencebaseret realisme · 7. oktober 2026
+
+Se [analyse med tidskoder og usikkerheder](docs/reference-analysis-2026-10-07.md). Syv nye videoer er gennemgået som billedserier og 38 konverterede fotos som kontaktark. Der er fundet forskudt flokgang, orienteringspauser under fødesøgning, venten ved passage og flere baskeforløb. Der er ikke udledt en fast rangorden eller målte personligheder.
+
+Individprofiler samler justerbare parametre. Ænderne kan følge en konkret selvstændigt bevægende nabo efter en individuel forsinkelse, og nærliggende fødesøgning fremskynder deres egen interesse. Foragering har hovedløft mellem søgeperioder; næbbet arbejder under søgning og spisning. Fotoarbejdet ændrer især hannens halsring og lyse krop, forskellen mellem de to brune hunner og den brogedes bryst/vingefelter. Vinger har skulder, albue og håndled; bask, ensidigt stræk og halevrik bruger lokale forløb med glidende overgange. Stræk og halevrik er fortsat ejerbaserede fortolkninger, ikke videomålte klip. Fuglene kræver plads til vingerne og afbryder ved mad, fare og nat.
+
+Åbn `reference.html` på den lokale server for at sammenligne de fire modeller, dreje udsigten, vælge bevægelse og standse eller gennemse forløbet. Samme modeller anvendes i haven. Originale fotos/videoer indgår ikke i webbygningen. Modellerne er fortsat procedurale og stiliserede; dette er ikke fotorealisme eller godkendt motion capture. Videre arbejde og begrænsninger står i analysen.
+
+### Seneste lokale bevægelsesjustering
+
+Baskene bevæger sig fremad med stræk af bryst/hals og kan kort forekomme under gang. Pasta har separate optagelses- og håndteringsfaser med synligt stykke ved næbbet; benstillingen bevares mere strakt. Tilnærmelsen afhænger også af afstand, så den brogede ikke altid kommer sidst. Modelstudiet på `/reference.html` har ekstra forløb til pasta og invitation. Analyse, usikkerheder og kontrol er beskrevet i [referenceanalysen](docs/reference-analysis-2026-10-07.md).
+
+Modelstudiet har også gang, gang med bask og halv/kvart afspilningshastighed. Silhuetter, hals-/hovedmarkeringer og fjerstruktur er tilpasset nærfotos. Vingestræk har vægtskifte, rumpevrik omfatter bagkroppen, og nærtstående ænder kan reagere forskudt på en baskesekvens. Se referenceanalysen for skellet mellem observationer og foreløbige parametre.
+
+Lokalt: haven på `http://127.0.0.1:5173/` og modelstudiet på `http://127.0.0.1:5173/reference.html`. Hvis serveren er lukket, startes den med `Start-Ande-TV.ps1` i projektmappen.
+
+
+Benstillingen er kontrolleret igen mod nærfotos: også det nederste synlige led forbliver næsten strakt under almindelig ståstilling, fødesøgning og stående fjerpudsning. Modellerne har nu overlappende konturfjer med ujævne spidser, finere hoveddun, flere vingefjerlag og skæl/tådetaljer. I modelstudiet kan en enkelt and vælges til nærvisning. Se referenceanalysen for målinger og begrænsninger.

@@ -4,6 +4,7 @@ import { GARDEN, POND } from './types';
 import { createShelter, SHELTER, gardenGroundHeight } from './shelter';
 import { createSky } from './sky';
 import { createRainImpacts } from './rain-impacts';
+import { lawnTexture, lawnMarkMask } from './lawn-texture';
 
 type Weather = { cloud: number; wind: number; rain: number; isDay: boolean };
 type Ripple = { x: number; z: number; start: number; strength: number; line: THREE.LineLoop };
@@ -122,7 +123,7 @@ export function createEnvironment(scene: THREE.Scene): {
   // Its upper face is exactly y=0, so ground raycasts stay consistent with duck movement.
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(160, 160),
-    new THREE.MeshStandardMaterial({ color: 0x7ebe5c, roughness: 0.97 }),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, map:lawnTexture(), roughness: 0.97 }),
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -130,7 +131,7 @@ export function createEnvironment(scene: THREE.Scene): {
   scene.add(ground);
 
   // Broad, low-color patches break up the otherwise uniform lawn without obscuring the ducks.
-  const patchMaterial = new THREE.MeshStandardMaterial({ color: 0x90c96a, roughness:1, transparent: true, opacity: 0.22, depthWrite: false });
+  const patchMaterial = new THREE.MeshStandardMaterial({ color: 0x90c96a, alphaMap:lawnMarkMask(), roughness:1, transparent: true, opacity: 0.18, depthWrite: false });
   const patchGeometry = new THREE.CircleGeometry(1, 24);
   const patchDummy = new THREE.Object3D();
   const patches = new THREE.InstancedMesh(patchGeometry, patchMaterial, 50);
@@ -156,7 +157,8 @@ export function createEnvironment(scene: THREE.Scene): {
     -0.04, 0, 0.025, -0.023, 0.067, -0.035, 0.035, 0, -0.045,
   ], 3));
   bladeShape.computeVertexNormals();
-  const grassCount = 1250;
+  bladeShape.scale(.28,1,.28);
+  const grassCount = 4200;
   const grass = new THREE.InstancedMesh(
     bladeShape,
     new THREE.MeshStandardMaterial({ color: 0x73b64d, roughness: 1, side: THREE.DoubleSide, vertexColors: false }),
@@ -373,13 +375,15 @@ export function createEnvironment(scene: THREE.Scene): {
   centres.frustumCulled = false;
   scene.add(stems, petals, centres);
 
-  const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.77, depthWrite: false });
+  // Weather supplies the cloud tint; ground bounce must not turn undersides green.
+  const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.77, depthWrite: false });
   const cloudGeo = new THREE.SphereGeometry(1, 12, 8);
   const cloudParts: Array<{ x: number; y: number; z: number; sx: number; sy: number; sz: number; cluster: number; speed: number }> = [];
-  for (let c = 0; c < 7; c++) {
-    const origin = -18 + c * 5.7 + rand() * 2;
-    const y = 5.2 + rand() * 1.4;
-    const z = -12 - rand() * 7;
+  // A sky-wide field instead of a single strip behind the north hedge.
+  for (let c = 0; c < 36; c++) {
+    const origin = -40 + (c % 6) * 16 + (rand()-.5)*6;
+    const y = 9 + rand() * 4;
+    const z = -40 + Math.floor(c / 6) * 16 + (rand()-.5)*6;
     const speed = 0.2 + rand() * 0.18;
     const puffs = 3 + Math.floor(rand() * 3);
     for (let p = 0; p < puffs; p++) {
@@ -391,10 +395,11 @@ export function createEnvironment(scene: THREE.Scene): {
     }
   }
   const clouds = new THREE.InstancedMesh(cloudGeo, cloudMat, cloudParts.length);
+  clouds.name='drifting-clouds';
   clouds.frustumCulled = false;
   scene.add(clouds);
 
-  const rainCount = 340;
+  const rainCount = 900;
   const rainPositions = new Float32Array(rainCount * 3);
   for (let i = 0; i < rainCount; i++) {
     rainPositions[i * 3] = (rand() - 0.5) * 19;
@@ -402,9 +407,10 @@ export function createEnvironment(scene: THREE.Scene): {
     rainPositions[i * 3 + 2] = (rand() - 0.5) * 14;
   }
   const rainGeometry = new THREE.BufferGeometry();
-  rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
-  const rainMaterial = new THREE.PointsMaterial({ color: 0xd8eeff, size: 0.035, transparent: true, opacity: 0.43, depthWrite: false });
-  const rain = new THREE.Points(rainGeometry, rainMaterial);
+  const rainLines=new Float32Array(rainCount*6);
+  rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainLines, 3));
+  const rainMaterial = new THREE.LineBasicMaterial({ color: 0xd8eeff, transparent: true, opacity: 0.43, depthWrite: false });
+  const rain = new THREE.LineSegments(rainGeometry, rainMaterial);rain.name='weather-rain';
   rain.visible = false;
   rain.frustumCulled = false;
   scene.add(rain);
@@ -437,12 +443,13 @@ export function createEnvironment(scene: THREE.Scene): {
     sky.set(daylight,cloudiness,sun.position);
     targetSky.copy(skyDay).lerp(skyOvercast,cloudiness*.8).lerp(skyNight,1-daylight);
     targetHemi = THREE.MathUtils.lerp(.32,2.15-cloudiness*.55,daylight);
-    targetSun = THREE.MathUtils.lerp(.08,2.6-cloudiness*1.35,daylight);
+    targetSun = THREE.MathUtils.lerp(.08,2.6-cloudiness*2.35,daylight);
     targetSunColor.set(daylight>.8 ? 0xfff2d1 : daylight>.1 ? 0xffbf87 : 0xa8bde2);
     targetCloudOpacity = weather.isDay ? 0.7 + cloudiness * 0.2 : 0.36;
     targetCloudColor.set(0xffffff).lerp(new THREE.Color(0x566474),Math.min(.9,cloudiness*.45+Math.min(1,weather.rain/2)*.5));
     targetWaterColor.set(weather.isDay ? 0x68cdef : 0x477b9f);
-    rain.visible = weather.rain > 0.1;
+    rain.visible = weather.rain > 0;
+    rainGeometry.setDrawRange(0,Math.min(rainCount,Math.round(160+weather.rain*320))*2);
     if (!weatherInitialized) {
       (scene.background as THREE.Color).copy(targetSky);
       fog.color.copy(targetSky);
@@ -500,10 +507,13 @@ export function createEnvironment(scene: THREE.Scene): {
     grass.instanceMatrix.needsUpdate = true;
 
     cloudParts.forEach((part, i) => {
-      const drift = ((part.cluster + 25 + time * part.speed) % 50 + 50) % 50 - 25 - part.cluster;
+      const centre = ((part.cluster + 48 + time * part.speed) % 96 + 96) % 96 - 48;
+      const drift = centre - part.cluster;
       grassDummy.position.set(part.x + drift, part.y, part.z);
       grassDummy.rotation.set(0, 0, 0);
-      grassDummy.scale.set(part.sx, part.sy, part.sz);
+      // Fade at the distant wrap boundary so a cluster never visibly jumps.
+      const coverage=(1+weather.cloud/100*1.9)*(1-THREE.MathUtils.smoothstep(Math.abs(centre),40,48));
+      grassDummy.scale.set(part.sx*coverage, part.sy, part.sz*coverage);
       grassDummy.updateMatrix();
       clouds.setMatrixAt(i, grassDummy.matrix);
     });
@@ -560,15 +570,20 @@ export function createEnvironment(scene: THREE.Scene): {
         const rim=!water&&Math.hypot(dx,dz)<shellRadius(Math.atan2(dz,dx),1.65);
         const impactY=roof?1.525:water?POND.waterY:rim?POND.rimY:gardenGroundHeight(x,z);
         if (rainPositions[yIndex] < impactY+.015) {
-          if(x>GARDEN.minX&&x<GARDEN.maxX&&z>GARDEN.minZ&&z<GARDEN.maxZ)
+          if(i<rainGeometry.drawRange.count/2&&x>GARDEN.minX&&x<GARDEN.maxX&&z>GARDEN.minZ&&z<GARDEN.maxZ)
             rainImpacts.hit(x,impactY,z,water&&!roof);
           rainPositions[yIndex] = 7.5 + rand();
           rainPositions[i * 3] = (rand() - 0.5) * 19;
           rainPositions[i * 3+2] = (rand() - 0.5) * 14;
         }
       }
+      for(let i=0;i<rainCount;i++){
+        const p=i*3,k=i*6;
+        rainLines[k]=rainPositions[p];rainLines[k+1]=rainPositions[p+1];rainLines[k+2]=rainPositions[p+2];
+        rainLines[k+3]=rainPositions[p]-wind*.003;rainLines[k+4]=rainPositions[p+1]+.075;rainLines[k+5]=rainPositions[p+2];
+      }
       rainGeometry.attributes.position.needsUpdate = true;
-      rainMaterial.opacity = Math.min(0.55, 0.18 + weather.rain * 0.015);
+      rainMaterial.opacity = Math.min(0.6, 0.30 + weather.rain * 0.08);
     }
   }
 

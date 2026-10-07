@@ -4,6 +4,16 @@ import * as THREE from 'three';
 import {createDuck} from '../src/duck-model';
 import type {DuckPose} from '../src/types';
 
+test('leaving a drinking dip does not snap the head from water height to ground',()=>{
+ const model=createDuck('buff'),head=model.group.getObjectByName('duck-head')!;
+ const pose:DuckPose={state:'drink',time:0,speed:0,upright:0,look:0,peck:.9,headTilt:0,displayDip:0};
+ for(let i=1;i<=120;i++)model.animate({...pose,time:i/60});
+ const before=head.getWorldPosition(new THREE.Vector3());
+ model.animate({...pose,state:'rest',peck:0,upright:1,time:121/60});
+ const movement=head.getWorldPosition(new THREE.Vector3()).distanceTo(before);
+ assert.ok(movement<.06,`head moved ${movement.toFixed(3)} in one frame`);
+});
+
 test('a glance turns the head before the neck without rotating the body',()=>{
  const model=createDuck('buff'),head=model.group.getObjectByName('duck-head')!;
  const neck=model.group.getObjectByName('duck-neck')!,torso=model.group.getObjectByName('duck-torso')!;

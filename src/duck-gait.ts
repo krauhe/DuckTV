@@ -65,7 +65,9 @@ export class DuckGait {
         foot.from.copy(foot.position); foot.fromYaw = foot.yaw;
         // Brief, quick recovery; most of each foot's cycle is planted stance.
         foot.duration = Math.max(.065, .105-speed*.025);
-        foot.height = .052+speed*.028;
+        // A straight support leg still needs a clear raised recovery step.
+        // Walking reference 2026-10-05 10.50.29, 13.20–13.30 s.
+        foot.height = .060+speed*.025;
         foot.target.copy(this.neutral).addScaledVector(this.velocity, foot.duration*.5);
         foot.target.y = support(foot.target,heading);
         foot.targetYaw = heading; foot.progress = 0;

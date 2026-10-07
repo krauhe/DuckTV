@@ -46,3 +46,48 @@ test('untouched screens start following immediately, including after losing focu
  assert.equal(follow.update(.025,3,camera,target,ducks),false);
  assert.equal(follow.update(.025,23,camera,target,ducks),true);
 });
+
+
+test('small flock jitter leaves a settled camera and its aim completely still',()=>{
+ const follow=new CameraFollow(),camera=new PerspectiveCamera(),target=new Vector3(0,.65,0);
+ camera.position.set(0,1.65,3);const before=camera.position.clone(),aim=target.clone();
+ for(let i=0;i<1200;i++){
+  const noise=.035*Math.sin(i*1.7);
+  follow.update(1/60,i/60,camera,target,[{x:noise,z:-noise}]);
+ }
+ assert.ok(camera.position.distanceTo(before)<1e-10,'position has a dead zone');
+ assert.ok(target.distanceTo(aim)<1e-10,'aim has a separate dead zone');
+});
+
+test('sustained flock movement is followed with bounded acceleration and settles without hunting',()=>{
+ const follow=new CameraFollow(),camera=new PerspectiveCamera(),target=new Vector3(0,.65,0);
+ camera.position.set(0,1.65,3.8);
+ let previousVelocity=new Vector3();
+ for(let i=0;i<1800;i++){
+  const before=camera.position.clone();
+  follow.update(1/60,i/60,camera,target,[{x:i<60?0:1.8,z:0}]);
+  const velocity=camera.position.clone().sub(before).multiplyScalar(60);
+  assert.ok(velocity.distanceTo(previousVelocity)*60<.61,'no abrupt steering impulses');
+  previousVelocity=velocity;
+ }
+ assert.ok(target.distanceTo(new Vector3(1.8,.65,0))<.05,'tracks a real change');
+ const before=camera.position.clone(),aim=target.clone();
+ for(let i=1800;i<2400;i++)follow.update(1/60,i/60,camera,target,[{x:1.8+.025*Math.sin(i*2),z:0}]);
+ assert.ok(camera.position.distanceTo(before)<.001,'settled camera does not hunt');
+ assert.ok(target.distanceTo(aim)<1e-10,'aim ignores renewed small jitter');
+});
+
+test('filter response remains consistent at different frame rates',()=>{
+ const run=(fps:number)=>{
+  const follow=new CameraFollow(),camera=new PerspectiveCamera(),target=new Vector3(0,.65,0);
+  camera.position.set(0,1.65,3.8);
+  for(let i=0;i<fps*12;i++)follow.update(1/fps,i/fps,camera,target,[{x:Math.min(1.5,i/fps*.25),z:0}]);
+  return {position:camera.position,target};
+ };
+ const reference=run(60);
+ for(const fps of [30,120]){
+  const result=run(fps);
+  assert.ok(result.position.distanceTo(reference.position)<.025);
+  assert.ok(result.target.distanceTo(reference.target)<.015);
+ }
+});

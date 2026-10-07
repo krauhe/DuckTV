@@ -82,3 +82,18 @@
 #settings button:not(#dock-toggle){border:1px solid #34563f16;border-radius:12px;background:#ffffffb0}
 @media(pointer:coarse),(max-width:600px){#settings.control-dock{width:176px}#settings.open{width:calc(100% - 20px);padding:0 18px}#settings #dock-toggle{font-size:13px;min-height:46px}}
 @media(prefers-reduced-motion:reduce){#settings.control-dock,.settings-chevron{transition:none}}
+
+/* Stable labels and explicit on/off switches. */
+#settings .switch-row{position:relative;display:flex;align-items:center;gap:10px;min-height:48px;margin:7px 0;padding:10px 12px;border-radius:13px;background:#ffffff70;font-size:13px;font-weight:500;cursor:pointer;transition:background .18s ease}
+#settings .switch-row[hidden]{display:none}
+#settings .switch-row:has(input:checked){background:#ffffff70;color:inherit}
+#settings .switch-row>span:first-child{flex:1}
+#settings .switch-row .switch-state{font-size:10px;opacity:.8;max-width:76px}
+#settings .switch-row:not(#sound-control) .switch-state::after{content:'Fra'}
+#settings .switch-row:has(input:checked):not(#sound-control) .switch-state::after{content:'Til'}
+#settings .switch-row input[type=checkbox]{position:absolute;width:1px;height:1px;opacity:0;margin:0;min-height:0}
+.switch-track{position:relative;display:block;width:38px;height:22px;border-radius:20px;background:#9aaba0;flex:none}
+.switch-track::after{content:'';position:absolute;left:3px;top:3px;width:16px;height:16px;background:white;border-radius:50%;box-shadow:0 1px 3px #0002;transition:transform .18s ease}
+input:checked+.switch-track{background:#03522d}input:checked+.switch-track::after{transform:translateX(16px)}
+#settings .switch-row:has(input:focus-visible){outline:3px solid #b78631;outline-offset:3px}
+@media(prefers-reduced-motion:reduce){#settings .switch-row,.switch-track::after{transition:none}}

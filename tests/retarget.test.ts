@@ -39,6 +39,9 @@ test('bow skin bends without squeezing its cross-section and releases after repl
  const model=createDuck('buff');model.group.rotation.y=Math.PI/2;
  const skin=model.group.getObjectByName('duck-recorded-neck') as THREE.Mesh;
  const pose={state:'wander' as const,speed:0,time:0,look:0,peck:0,upright:1,headTilt:0,displayDip:0};
+ const neutral=skin.geometry.getAttribute('position');
+ const diameters=Array.from({length:33},(_,ring)=>new THREE.Vector3().fromBufferAttribute(neutral,ring*17)
+  .distanceTo(new THREE.Vector3().fromBufferAttribute(neutral,ring*17+8)));
  let greatestBend=0;
  for(let i=0;i<clip.frames.length;i+=3){
   const mapped=retargetFeet(clip.frames[i]);
@@ -49,8 +52,7 @@ test('bow skin bends without squeezing its cross-section and releases after repl
   for(let ring=0;ring<=32;ring++){
    const a=new THREE.Vector3().fromBufferAttribute(vertices,ring*17),b=new THREE.Vector3().fromBufferAttribute(vertices,ring*17+8);
    assert.ok([...a,...b].every(Number.isFinite));
-   const radius=.047+.065*(1-ring/32)**3-.017*(ring/32)**8;
-   assert.ok(Math.abs(a.distanceTo(b)-2*radius)<1e-6,'feather thickness survives the bow');
+   assert.ok(Math.abs(a.distanceTo(b)-diameters[ring])<1e-6,'feather thickness survives the bow');
    const centre=a.add(b).multiplyScalar(.5);centres.push(centre);
    if(previous)path+=previous.distanceTo(centre);previous=centre;
   }

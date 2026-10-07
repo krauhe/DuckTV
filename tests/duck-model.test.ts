@@ -277,3 +277,27 @@ test('head stabilization preserves deliberate feeding and courtship bows', () =>
   for (let i = 62; i < 240; i++) model.animate({ ...pose, time: i / 60, displayDip: 1 });
   assert.ok(standing - height() > .1, 'courtship bow remains visible');
 });
+
+
+test('the visible hock stays nearly straight in standing, feeding and most of walking stance',()=>{
+ const bend=(model:ReturnType<typeof createDuck>,side:string)=>{
+  const knee=model.group.getObjectByName(`duck-${side}-knee`)!.position;
+  const hock=model.group.getObjectByName(`duck-${side}-hock`)!.position;
+  const ankle=model.group.getObjectByName(`duck-${side}-foot`)!.position.clone().add(new THREE.Vector3(0,.025,0));
+  return Math.acos(THREE.MathUtils.clamp(hock.clone().sub(knee).normalize().dot(ankle.sub(hock).normalize()),-1,1))*180/Math.PI;
+ };
+ for(const [state,upright,peck] of [['rest',0,0],['rest',1,0],['forage',0,.9],['eat',1,.9],['preen',0,0]] as const){
+  const model=createDuck('buff');
+  for(let i=0;i<120;i++)model.animate({state,time:i/60,speed:0,upright,peck,look:0,headTilt:0,displayDip:0});
+  for(const side of ['left','right'])assert.ok(bend(model,side)<15,`${state}: visible joint must not crouch`);
+ }
+ for(const speed of [.23,.82,1.65]){
+  const model=createDuck('buff'),angles:number[]=[];
+  for(let i=0;i<360;i++){
+   model.group.position.z+=speed/60;
+   model.animate({state:'wander',time:i/60,speed,upright:0,peck:0,look:0,headTilt:0,displayDip:0});model.group.updateMatrixWorld(true);
+   for(const side of ['left','right'])if(model.group.getObjectByName(`duck-${side}-foot`)!.getWorldPosition(new THREE.Vector3()).y<.004)angles.push(bend(model,side));
+  }
+  angles.sort((a,b)=>a-b);assert.ok(angles[Math.floor(angles.length*.9)]<20,'at least 90% of support frames are near extension');
+ }
+});

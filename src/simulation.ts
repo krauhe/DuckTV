@@ -1,6 +1,9 @@
+import { feedingPose } from './duck-feeding';
 import { GARDEN, POND, type DuckKind, type DuckState, type Vec2 } from './types';
 import { drive, DYNAMICS, HOP_GRAVITY, planHop } from './dynamics';
-import { perceive, replyChance, type Needs, type Neighbor } from './social-behavior';
+import { perceive, replyChance, followCandidate, wingStimulus, type Needs, type Neighbor } from './social-behavior';
+import { DUCK_PROFILES } from './duck-profiles';
+import { GESTURE_SECONDS, type GesturePose, type DuckGesture } from './duck-gestures';
 import { SHELTER, shelterBeds, gardenGroundHeight, ShelterDoor } from './shelter';
 import { resolveDuckContacts } from './duck-collisions';
 
@@ -86,6 +89,9 @@ export const BEHAVIOR = {
 } as const;
 
 export interface Duck {
+  preenTarget?:'chest'|'wing';
+  followingId?:string;
+  gesture?:GesturePose;
   needs: Needs;
   wary: boolean;
   insect?: Vec2;
@@ -136,9 +142,18 @@ export interface Food {
   landed: boolean;
   eaten: boolean;
   eatenAt?: number;
+  carriedBy?:string;
 }
 
 interface Intent {
+  followCandidateId?:string;
+  followSeenFor:number;
+  followUntil:number;
+  followAgainAt:number;
+  gestureAt:number;
+  gestureStarted:number;
+  imitateAgainAt:number;
+  respondAt?:number;
   roosting: boolean;
   daylightAt?:number;
   wakeBathAt?:number;
@@ -158,6 +173,7 @@ interface Intent {
   forageStep: number;
   moved:boolean;
   crossingFrom?: Vec2;
+  bathEntry?: {shore:Vec2;water:Vec2;wait:Vec2};
   crossingY?: number;
   landedAt:number;
   comfortAt: number;
@@ -171,6 +187,7 @@ interface Intent {
   timer: number;
   noticeUntil: number;
   peckTimer: number;
+  handlingSeconds?:number;
   approachTravel: number;
   approachPaused: boolean;
   pauseUntil: number;
@@ -238,26 +255,30 @@ export class Simulation {
     ];
     this.ducks = kinds.map((kind, index) => {
       const start = starts[index];
+      const activities:DuckState[]=kind==='drake'?['guard','guard','forage','preen']:['wander','rest','forage','preen'];
+      const initialState=activities[Math.min(activities.length-1,Math.floor(this.random()*activities.length))];
       const duck: Duck = {
         needs: { bath: .1+index*.06, rest: .12+index*.035, sociability: [ .85,.7,.9,1 ][index] },
         mass:[2,1.7,1.85,1.8][index],inertia:[2,1.7,1.85,1.8][index]*.12,vx:0,vz:0,ax:0,az:0,angularVelocity:0,
         jumpProgress:-1,crouch:0,landing:0,waterEntries:0,mouthOpen:0,insectsCaught:0,
         id: kind, kind, x: start.x, z: start.z, y: 0, wary: false,
-        heading: start.heading, state: kind === 'drake' ? 'guard' : 'wander',
-        speed: 0, look: 0, peck: 0, upright: 1, headTilt: 0, displayDip: 0,
+        heading: start.heading, state: initialState,
+        speed: 0, look: 0, peck: 0, upright: initialState==='forage'||initialState==='preen'?0:1, headTilt: 0, displayDip: 0,
+        preenTarget:initialState==='preen'?(this.random()<.5?'chest':'wing'):undefined,
       };
       this.intents.set(duck.id, {
+        followSeenFor:0,followUntil:0,followAgainAt:0,gestureAt:this.range(10,40),gestureStarted:0,imitateAgainAt:0,
         roosting: false,
         displayAt: BEHAVIOR.displayFirstAt,
-        social: { calm: 0, activity: 0, bathing: 0, center: undefined },
+        social: { calm: 0, activity: 0, bathing: 0, foraging:0, center: undefined },
         retreating: false,
-        exploreAt: BEHAVIOR.exploreFirstAt + index * 3,
-        exploreStarted: 0, exploreCount: index % 2, forageStep: -1,
+        exploreAt: this.range(5,22),
+        exploreStarted: initialState==='forage'?-this.range(0,3):0, exploreCount: index % 2, forageStep: -1,
         moved:false,landedAt:-Infinity,
-        comfortAt: BEHAVIOR.comfortFirstAt + index * 9,
-        comfortUntil: 0, comfortCount: 0,
+        comfortAt: this.range(15,45),
+        comfortUntil: initialState==='preen'?this.range(4,10):0, comfortCount: 0,
         headingTarget: start.heading, guardMoving: false, idleFor: 0,
-        target: { x: start.x, z: start.z }, timer: 0, noticeUntil: 0,
+        target: { x: start.x, z: start.z }, timer: initialState==='rest'?this.range(3,9):0, noticeUntil: 0,
         peckTimer: 0, approachTravel: 0, approachPaused: false, pauseUntil: 0,
         pondVisitAt: this.range(BEHAVIOR.pondVisitMin, BEHAVIOR.pondVisitMax) + index * 3,
         swimUntil: 0, phase: 'shore', queueAt: Infinity, crossTime: 0,
@@ -325,10 +346,20 @@ export class Simulation {
       food.landed = food.age >= BEHAVIOR.foodLandingDelay;
     }
     this.foods = this.foods.filter(food => food.age < BEHAVIOR.foodLifetime && (!food.eaten || this.time - (food.eatenAt ?? this.time) < BEHAVIOR.foodCleanupDelay));
-    const neighbors: Neighbor[] = this.ducks.map(({id,x,z,state,speed})=>({id,x,z,state,speed}));
+    const neighbors: Neighbor[] = this.ducks.map(({id,x,z,state,speed,heading,followingId,gesture})=>({id,x,z,state,speed,heading,followingId,gesture:gesture?{...gesture}:undefined}));
     for (const duck of this.ducks) {
       const intent = this.intents.get(duck.id)!;
       intent.social = perceive(duck,neighbors);
+      // Sustained nearby foraging advances this bird's interest, without copying a pose.
+      if(['wander','guard','rest'].includes(duck.state)&&intent.exploreAt>this.time+1)
+        intent.exploreAt-=dt*intent.social.foraging*duck.needs.sociability*1.8;
+      this.observeFlock(duck,intent,neighbors,dt);
+      if(!this.night&&!this.courtship&&!duck.gesture&&!intent.retreating&&!this.foods.some(f=>!f.eaten)&&
+        ['wander','rest','guard'].includes(duck.state)&&this.time>=intent.imitateAgainAt&&wingStimulus(duck,neighbors)){
+        intent.imitateAgainAt=this.time+35;
+        if(this.random()<.4*duck.needs.sociability)
+          intent.respondAt=this.time+DUCK_PROFILES[duck.kind].followDelay+this.range(.35,1.05);
+      }
       duck.needs.bath = clamp(duck.needs.bath + dt*(duck.state==='swim' ? -.13 : .018+intent.social.bathing*.015),0,1);
       duck.needs.rest = clamp(duck.needs.rest + dt*(duck.state==='sleep' ? -.065 : .009+Math.min(2,duck.speed)*.009),0,1);
     }
@@ -358,8 +389,12 @@ export class Simulation {
         this.updateExpression(duck, dt);
         continue;
       }
+      if(duck.gesture&&!(duck.gesture.kind==='wingFlap'&&duck.speed>.08)&&!this.night&&!this.foods.some(f=>!f.eaten)){
+        this.brake(duck,intent,dt);this.updateExpression(duck,dt);continue;
+      }
       if (this.comfort(duck, intent)) { this.brake(duck,intent,dt);this.updateExpression(duck, dt); continue; }
-      if (this.explore(duck, intent, dt)) { /* Local prey/ground interest takes a short turn. */ }
+      if (this.followFlock(duck,intent,neighbors,dt)) { /* A bounded, individual following bout. */ }
+      else if (this.explore(duck, intent, dt)) { /* Local prey/ground interest takes a short turn. */ }
       else if (duck.kind === 'drake' && !['enter','swim','exit'].includes(duck.state)) {
         if (!this.foods.some(food=>!food.eaten) && duck.needs.bath > .78 && this.time>=(intent.wakeBathAt??0)) this.beginBath(duck,intent);
         else this.guard(duck, intent, dt);
@@ -368,6 +403,7 @@ export class Simulation {
       if(!intent.moved)this.brake(duck,intent,dt);
       this.updateExpression(duck, dt);
     }
+    for(const food of this.foods)if(food.carriedBy&&!this.ducks.some(d=>d.id===food.carriedBy&&d.state==='eat'))food.carriedBy=undefined;
     this.separateDucks();
     for (const duck of this.ducks) {
       const intent = this.intents.get(duck.id)!;
@@ -391,6 +427,37 @@ export class Simulation {
     const drake = this.ducks.find(duck=>duck.kind==='drake');
     if(drake)this.intents.get(drake.id)!.displayAt = this.time + BEHAVIOR.displayCooldown;
     for (const duck of this.ducks) duck.displayDip = 0;
+  }
+
+  private observeFlock(duck:Duck,intent:Intent,neighbors:Neighbor[],dt:number):void{
+    const eligible=['wander','guard','rest'].includes(duck.state)&&!this.night&&!this.courtship&&
+      !this.foods.some(f=>!f.eaten)&&!intent.retreating&&duck.needs.bath<.78&&duck.needs.rest<.65;
+    if(!eligible){duck.followingId=undefined;intent.followSeenFor=0;intent.followCandidateId=undefined;return;}
+    if(duck.followingId)return;
+    if(this.time<intent.followAgainAt)return;
+    const candidate=followCandidate(duck,neighbors);
+    if(candidate?.id!==intent.followCandidateId){intent.followSeenFor=0;intent.followCandidateId=candidate?.id;}
+    if(!candidate)return;
+    intent.followSeenFor+=dt;
+    if(intent.followSeenFor>=DUCK_PROFILES[duck.kind].followDelay){
+      duck.followingId=candidate.id;intent.followUntil=this.time+this.range(2.5,4.5);
+      intent.followSeenFor=0;intent.route=undefined;
+    }
+  }
+
+  private followFlock(duck:Duck,intent:Intent,neighbors:Neighbor[],dt:number):boolean{
+    if(!duck.followingId)return false;
+    const leader=neighbors.find(n=>n.id===duck.followingId);
+    const stop=()=>{duck.followingId=undefined;intent.followAgainAt=this.time+this.range(4,8);intent.timer=0;};
+    if(!leader||leader.followingId||this.time>=intent.followUntil||!['wander','guard','forage'].includes(leader.state)||distance(duck,leader)>4){stop();return false;}
+    const profile=DUCK_PROFILES[duck.kind],heading=leader.heading??0;
+    const side=kinds.indexOf(duck.kind)%2?1:-1;
+    const target=this.safeLand({x:leader.x-Math.sin(heading)*profile.followDistance+Math.cos(heading)*side*.25,
+      z:leader.z-Math.cos(heading)*profile.followDistance-Math.sin(heading)*side*.25});
+    duck.state=duck.kind==='drake'?'guard':'wander';duck.peck=0;
+    if(distance(duck,target)>.25)this.moveLand(duck,target,BEHAVIOR.walkSpeed*profile.walkScale,dt);
+    if(leader.state==='forage'){intent.exploreAt=Math.min(intent.exploreAt,this.time+1);stop();}
+    return true;
   }
 
   private shelterBehavior(duck:Duck,intent:Intent,dt:number):boolean{
@@ -515,7 +582,7 @@ export class Simulation {
         !['wander', 'rest', 'guard'].includes(duck.state) ||
         distance(duck, shore) < 1.1 || (this.time >= intent.comfortAt&&duck.needs.rest>.6) ||
         duck.needs.bath > .78) return false;
-      const chase = intent.exploreCount++ % 3 === 1;
+      const chase = intent.exploreCount++ % 3 === 1 && intent.social.foraging<.25;
       // Pick one reachable direction per bout, not a new heading each frame.
       const angle = duck.heading + this.range(-.65, .65);
       const target = this.safeLand({ x: duck.x + Math.sin(angle) * 3.5, z: duck.z + Math.cos(angle) * 3.5 });
@@ -565,7 +632,8 @@ export class Simulation {
       }
       this.moveLand(duck, this.safeLand(insect), BEHAVIOR.chaseSpeed, dt);
     } else {
-      const step = Math.floor(elapsed / (5.5*(intent.activityScale??1))), phase = elapsed % (5.5*(intent.activityScale??1));
+      const cycle=5.5*(intent.activityScale??1)*DUCK_PROFILES[duck.kind].forageTempo;
+      const step = Math.floor(elapsed / cycle), phase = elapsed % cycle;
       if (step !== intent.forageStep) {
         intent.forageStep = step;
         const angle = duck.heading + this.range(-.35, .35);
@@ -575,7 +643,8 @@ export class Simulation {
       else {
         duck.look = Math.sin(elapsed*4)*.18;
         // Probe only after braking, so the bill does not scrape along the ground.
-        if (duck.speed < .06) duck.peck = .78+.12*Math.sin(elapsed*6.5)**2;
+        // Probe in bouts with brief head-up checks, seen in Oct 6/7 references.
+        if (duck.speed < .06 && phase<cycle-.85) duck.peck = .78+.12*Math.sin(elapsed*6.5)**2;
       }
     }
     return true;
@@ -642,11 +711,14 @@ export class Simulation {
     const index = this.ducks.indexOf(duck);
     const inWater = ['swim', 'enter', 'exit'].includes(duck.state);
     const displaying = this.courtship && (duck.kind === 'drake' || duck.id === this.courtship.partnerId);
+    this.updateGesture(duck,intent,!!displaying);
+    duck.preenTarget=duck.state==='preen'&&!this.night&&intent.comfortCount%2===1?'chest':'wing';
     const posturePhase = (this.time + index * 5.2) % 21;
     const relaxed = posturePhase > 11 && posturePhase < 17;
     const comfortable=duck.state==='preen'||duck.state==='sleep';
     const searching = duck.state === 'chase' || duck.state === 'forage' || duck.state==='drink';
-    const uprightTarget = duck.wary ? 1 : duck.state === 'swim' || comfortable || searching ? 0 : inWater || displaying || duck.state === 'notice' ? 1 : relaxed ? 0.12 : 1;
+    const checking=duck.state==='forage'&&duck.peck<.1&&duck.speed<.06;
+    const uprightTarget = duck.wary||duck.gesture?.kind==='wingFlap'||checking ? 1 : duck.state === 'swim' || comfortable || searching ? 0 : inWater || displaying || duck.state === 'notice' ? 1 : relaxed ? 0.12 : 1;
     duck.upright += (uprightTarget - duck.upright) * (1 - Math.exp(-dt * 2.5));
     const curiosityPhase = (this.time + index * 3.7) % 13;
     const curious = !duck.wary && !searching && !comfortable && !inWater && !displaying && duck.state !== 'eat' && (intent.idleFor > .6 || duck.state === 'notice') && curiosityPhase < 2.6;
@@ -673,12 +745,53 @@ export class Simulation {
     }
   }
 
+  private updateGesture(duck:Duck,intent:Intent,displaying:boolean):void{
+    // Wing clearance is wider sideways than fore/aft. A circular exclusion
+    // incorrectly prevented most flaps when another bird stood in front.
+    const wingSpace=this.ducks.every(other=>{
+      if(other===duck)return true;
+      const dx=other.x-duck.x,dz=other.z-duck.z;
+      const sideways=dx*Math.cos(duck.heading)-dz*Math.sin(duck.heading);
+      const forward=dx*Math.sin(duck.heading)+dz*Math.cos(duck.heading);
+      return (sideways/.95)**2+(forward/.65)**2>1;
+    })&&
+      distance(duck,POND)>POND.radius+.8&&duck.x>GARDEN.minX+.8&&duck.x<GARDEN.maxX-.8&&
+      duck.z>GARDEN.minZ+.8&&duck.z<GARDEN.maxZ-.8&&!(duck.x<SHELTER.maxX+.8&&duck.z<SHELTER.front+.8);
+    const eligible=!this.night&&!duck.wary&&!displaying&&!this.foods.some(f=>!f.eaten)&&
+      ['wander','rest','guard'].includes(duck.state)&&duck.speed<.9&&duck.jumpProgress<0&&
+      (!duck.gesture||duck.gesture.kind==='tailWag'||wingSpace);
+    if(!eligible){
+      intent.respondAt=undefined;
+      if(duck.gesture){duck.gesture=undefined;intent.gestureAt=this.time+this.range(15,35);}
+      return;
+    }
+    if(duck.gesture){
+      duck.gesture.progress=(this.time-intent.gestureStarted)/GESTURE_SECONDS[duck.gesture.kind];
+      if(duck.gesture.progress>=1){duck.gesture=undefined;intent.gestureAt=this.time+this.range(25,55);}
+      return;
+    }
+    if(intent.respondAt!==undefined){
+      if(this.time>intent.respondAt+3)intent.respondAt=undefined;
+      else if(this.time>=intent.respondAt&&wingSpace){
+        duck.gesture={kind:'wingFlap',progress:0,side:1,social:true};
+        intent.gestureStarted=this.time;intent.respondAt=undefined;return;
+      }
+    }
+    if(this.time<intent.gestureAt)return;
+    // Moving flaps are occasional, with the same clearance as standing flaps.
+    // Stretching and tail clips still wait for a stationary bird.
+    if(duck.speed>=.08&&(!wingSpace||this.random()>.18)){intent.gestureAt=this.time+3;return;}
+    const options:DuckGesture[]=duck.speed>=.08?['wingFlap']:wingSpace?['wingFlap','wingStretch','tailWag']:['tailWag'];
+    const kind=options[Math.min(options.length-1,Math.floor(this.random()*options.length))];
+    duck.gesture={kind,progress:0,side:this.random()<.5?-1:1};intent.gestureStarted=this.time;
+  }
+
   private female(duck: Duck, intent: Intent, dt: number): void {
     if (duck.state === 'enter') return this.enterPond(duck, intent, dt);
     if (duck.state === 'swim') return this.swim(duck, intent, dt);
     if (duck.state === 'exit') return this.exitPond(duck, intent, dt);
 
-    const food = intent.foodId ? this.foods.find(piece => piece.id === intent.foodId && (!piece.eaten || duck.state === 'eat')) : undefined;
+    const food = intent.foodId ? this.foods.find(piece => piece.id === intent.foodId && (!piece.eaten || piece.carriedBy === duck.id)) : undefined;
     if (!food && ['notice', 'approach', 'eat'].includes(duck.state)) {
       intent.foodId = undefined;
       duck.state = 'wander';
@@ -688,18 +801,18 @@ export class Simulation {
 
     if (duck.state === 'eat' && food) {
       intent.peckTimer -= dt;
-      const progress = 1 - clamp(intent.peckTimer / BEHAVIOR.peckSeconds, 0, 1);
-      duck.peck = Math.sin(Math.PI * progress);
-      duck.look = 0;
-      if (!food.eaten && progress >= BEHAVIOR.peckConsumeFraction) {
-        food.eaten = true;
-        food.eatenAt = this.time;
+      const handling=intent.handlingSeconds??1.1;
+      const pose=feedingPose(BEHAVIOR.peckSeconds+handling-intent.peckTimer,handling);
+      duck.peck=pose.peck;
+      duck.mouthOpen=pose.mouthOpen;
+      duck.look=0;
+      if(!food.eaten&&pose.pickedUp){
+        food.eaten=true;food.eatenAt=this.time;food.carriedBy=duck.id;
       }
-      if (intent.peckTimer <= 0) {
-        intent.foodId = undefined;
-        duck.peck = 0;
-        duck.state = 'wander';
-        intent.timer = 0;
+      if(pose.done){
+        food.carriedBy=undefined;
+        intent.foodId=undefined;duck.peck=0;duck.mouthOpen=0;
+        duck.state='wander';intent.timer=0;
       }
       return;
     }
@@ -720,10 +833,10 @@ export class Simulation {
     }
 
     if (duck.state === 'approach' && food) {
-      if (this.time < intent.pauseUntil) return;
+      if (this.time < intent.pauseUntil) {duck.look=Math.sin(this.time*3)*.22;return;}
       if (!intent.approachPaused && intent.approachTravel >= BEHAVIOR.approachPauseDistance) {
         intent.approachPaused = true;
-        intent.pauseUntil = this.time + BEHAVIOR.approachPauseSeconds[duck.kind as 'buff' | 'brown' | 'pied'];
+        intent.pauseUntil = this.time + BEHAVIOR.approachPauseSeconds[duck.kind as 'buff' | 'brown' | 'pied']*this.range(.7,1.6);
         return;
       }
       const before = { x: duck.x, z: duck.z };
@@ -736,7 +849,8 @@ export class Simulation {
       }
       if (distance(duck, food) <= BEHAVIOR.foodReach) {
         duck.state = 'eat';
-        intent.peckTimer = BEHAVIOR.peckSeconds;
+        intent.handlingSeconds=this.range(.8,1.65);
+        intent.peckTimer = BEHAVIOR.peckSeconds+intent.handlingSeconds;
       }
       return;
     }
@@ -745,7 +859,9 @@ export class Simulation {
     if (candidate) {
       intent.foodId = candidate.id;
       duck.state = 'notice';
-      const base = BEHAVIOR.noticeDelay[duck.kind as 'buff' | 'brown' | 'pied'];
+      // Distance and current flock engagement can outweigh individual caution.
+      const preference=BEHAVIOR.noticeDelay[duck.kind as 'buff'|'brown'|'pied'];
+      const base=.15+preference*.18+distance(duck,candidate)*.28+this.range(0,.35);
       const encouraged = duck.kind === 'pied' && this.ducks.some(other => other.kind === 'brown' && ['approach', 'eat'].includes(other.state));
       intent.noticeUntil = this.time + (encouraged ? base * 0.6 : base);
       this.face(duck, candidate);
@@ -797,31 +913,48 @@ export class Simulation {
       this.face(duck, { x: duck.x + Math.sin(this.time * 0.6), z: duck.z + Math.cos(this.time * 0.6) });
       intent.timer = BEHAVIOR.guardTurnSeconds;
     }
+    // Short grass probes coexist with watchfulness; never claim a pasta item.
+    if(!intent.guardMoving&&duck.speed<.04&&this.foods.some(f=>!f.eaten)){
+      const phase=this.time%9;
+      if(phase>6.8){duck.peck=Math.sin((phase-6.8)/2.2*Math.PI)*.86;duck.look=0;}
+    }
     intent.timer -= dt;
   }
 
   private beginBath(duck: Duck, intent: Intent): void {
+    let best=Infinity;
+    // Choose once per visit, rather than changing the target on every update.
+    for(let i=0;i<24;i++){
+      const angle=this.random()*Math.PI*2,dx=Math.cos(angle),dz=Math.sin(angle);
+      const edge={x:POND.x+dx*(POND.radius+.39),z:POND.z+dz*(POND.radius+.39)};
+      if(edge.x<GARDEN.minX+.4||edge.x>GARDEN.maxX-.4||edge.z<GARDEN.minZ+.4||edge.z>GARDEN.maxZ-.4)continue;
+      const water={x:POND.x+dx*(POND.radius-.60),z:POND.z+dz*(POND.radius-.60)};
+      const crowd=this.ducks.reduce((sum,other)=>other===duck?sum:sum+Math.max(0,1-distance(other,edge))*4+Math.max(0,.8-distance(other,water))*4,0);
+      const score=distance(duck,edge)*.35+crowd+this.random()*2;
+      if(score<best){best=score;intent.bathEntry={shore:edge,water,wait:this.safeLand({x:edge.x+dx*.65,z:edge.z+dz*.65})};}
+    }
+    intent.crossingFrom=undefined;
     duck.state='enter'; intent.phase='shore'; intent.queueAt=this.time; intent.crossTime=0;
   }
 
   private enterPond(duck: Duck, intent: Intent, dt: number): void {
     duck.look = 0;
+    const entry=intent.bathEntry??{shore,water:waterGate,wait:waitSlots[duck.kind]};
     if (intent.phase === 'shore') {
       if (!this.gateFree(duck)) {
-        this.moveLand(duck, waitSlots[duck.kind], BEHAVIOR.walkSpeed * 0.8, dt);
+        this.moveLand(duck, entry.wait, BEHAVIOR.walkSpeed * 0.8, dt);
         return;
       }
-      this.moveLand(duck, shore, BEHAVIOR.walkSpeed * 0.8, dt);
+      this.moveLand(duck, entry.shore, BEHAVIOR.walkSpeed * 0.8, dt);
       // The obstacle-avoidance margin can stop a duck just short of this point.
-      if (distance(duck, shore) < 0.05 && duck.speed < .14) {
+      if (distance(duck, entry.shore) < 0.05 && duck.speed < .14) {
         intent.phase = 'cross';
         intent.crossTime = 0;
         intent.crossingFrom={x:duck.x,z:duck.z};intent.crossingY=duck.y;
       }
       return;
     }
-    const t=this.crossPond(duck,intent,waterGate,POND.waterY,dt);
-    intent.headingTarget = Math.PI / 2;
+    const t=this.crossPond(duck,intent,entry.water,POND.waterY,dt);
     if (t >= 1) {
       duck.state = 'swim';
       duck.y = POND.waterY;
@@ -900,6 +1033,7 @@ export class Simulation {
   }
 
   private gateFree(duck: Duck): boolean {
+    const landing=duck.state==='enter'?(this.intents.get(duck.id)!.bathEntry?.water??waterGate):waterGate;
     return !this.ducks.some(other => {
       if (other.id === duck.id) return false;
       const otherIntent = this.intents.get(other.id)!;
@@ -908,7 +1042,7 @@ export class Simulation {
         const myQueue = this.intents.get(duck.id)!.queueAt;
         if (otherIntent.queueAt < myQueue || (otherIntent.queueAt === myQueue && this.ducks.indexOf(other) < this.ducks.indexOf(duck))) return true;
       }
-      if (other.state !== 'swim' || distance(other, waterGate) >= BEHAVIOR.duckSpacing + 0.08) return false;
+      if (other.state !== 'swim' || distance(other, landing) >= BEHAVIOR.duckSpacing + 0.08) return false;
       return duck.state === 'enter' || this.ducks.indexOf(other) < this.ducks.indexOf(duck);
     });
   }
@@ -927,7 +1061,9 @@ export class Simulation {
     // Enter and leave via the broad open front, never through the wire sides.
     if(inside(target)&&!inside(from)){
       if(from.x<minX+.2 || from.x>maxX-.2){
-        if(from.z<front+.4)return {x:from.x,z:front+.5};
+        // Use the shelter corner, not a moving vertical waypoint at the bird's
+        // current x: behind the pond that switched detour sides every few ticks.
+        if(from.z<front+.4)return {x:from.x<minX?minX-.4:maxX+.4,z:front+.5};
         return {x:clamp(target.x,minX+.3,maxX-.3),z:front+.5};
       }
     }
@@ -1062,7 +1198,7 @@ export class Simulation {
   }
 
   private temperament(kind: DuckKind): number {
-    return kind === 'buff' ? 1.1 : kind === 'brown' ? 0.96 : 0.8;
+    return DUCK_PROFILES[kind].walkScale;
   }
 
   private face(duck: Duck, target: Vec2): void {
