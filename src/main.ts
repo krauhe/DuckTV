@@ -95,7 +95,7 @@ controls.enablePan=true;
 controls.touches={ONE:THREE.TOUCH.ROTATE,TWO:THREE.TOUCH.DOLLY_PAN};
 controls.screenSpacePanning=false;
 controls.mouseButtons={LEFT:THREE.MOUSE.ROTATE,MIDDLE:THREE.MOUSE.DOLLY,RIGHT:THREE.MOUSE.PAN};
-function resetView(){camera.position.set(.2,1.65,3.8);controls.target.set(.1,.65,-.3);controls.update();constrainGardenCamera(camera,controls.target)}
+function resetView(){camera.zoom=1;camera.updateProjectionMatrix();cameraFollow.reset();camera.position.set(.2,1.65,3.8);controls.target.set(.1,.65,-.3);controls.update();constrainGardenCamera(camera,controls.target)}
 resetView();
 const environment=createEnvironment(scene);
 const eggs=createEggs(scene);

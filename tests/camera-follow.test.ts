@@ -5,6 +5,36 @@ import { CameraFollow, FOLLOW_CAMERA } from '../src/camera-follow';
 import { constrainGardenCamera } from '../src/camera-bounds';
 import { GARDEN } from '../src/types';
 
+test('a new offscreen fly widens the view before the duck reaches it, holds and gently restores zoom',()=>{
+ for(const aspect of [16/9,9/16]){
+  const follow=new CameraFollow(),camera=new PerspectiveCamera(aspect<1?100:55,aspect),target=new Vector3(0,.65,0);
+  camera.position.set(0,1.65,3.8);camera.lookAt(target);camera.updateMatrixWorld(true);
+  const ducks:{x:number;z:number;insect?:{x:number;z:number}}[]=[{x:0,z:0,insect:{x:4,z:0}},{x:-.4,z:0}];
+  const fly=new Vector3(4,.5,0);
+  assert.ok(fly.clone().project(camera).x>1,'fly begins outside the frame');
+  let previous=1;
+  for(let i=0;i<120;i++){
+   follow.update(1/60,i/60,camera,target,ducks);
+   assert.ok(camera.zoom<=previous+1e-9,'no zoom pumping during the hunt');
+   assert.ok(previous-camera.zoom<.025,'zoom does not jump');previous=camera.zoom;
+  }
+  camera.updateMatrixWorld(true);
+  for(const point of [fly,new Vector3(0,.65,0)]){
+   const screen=point.clone().project(camera);
+   assert.ok(Math.abs(screen.x)<.9&&Math.abs(screen.y)<.9,'fly and stationary hunter both fit with margin');
+  }
+  assert.ok(camera.zoom<.95,'widens before the hunter has moved');
+  ducks[0].insect=undefined;const wide=camera.zoom;
+  for(let i=120;i<210;i++)follow.update(1/60,i/60,camera,target,ducks);
+  assert.ok(camera.zoom<=wide+1e-8,'keeps the wide view after the catch');
+  for(let i=210;i<1200;i++)follow.update(1/60,i/60,camera,target,ducks);
+  assert.ok(camera.zoom>.99,'gradually returns to ordinary framing');
+  follow.manual(21,true);const zoom=camera.zoom,aim=target.clone();ducks[0].insect={x:-4,z:0};
+  assert.equal(follow.update(.05,22,camera,target,ducks),false);
+  assert.equal(camera.zoom,zoom);assert.deepEqual(target,aim);
+ }
+});
+
 test('follow starts after idle time and immediately yields to manual input, including a held drag',()=>{
  const follow=new CameraFollow(),camera=new PerspectiveCamera(),target=new Vector3(0,.65,0);
  camera.position.set(0,1.65,3.8);const ducks=[{x:2,z:0}];

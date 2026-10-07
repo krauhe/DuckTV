@@ -22,17 +22,22 @@ export class CameraFollow {
   private moving = false;
   private looking = false;
   private lastUpdate = -Infinity;
+  private huntUntil = -Infinity;
+  private huntCentre = new Vector3();
+  private viewPoint = new Vector3();
+  private huntZoom = 1;
 
   /** Drop momentum when manual input, a pause or disabling follow takes over. */
   reset():void {
     this.initialized=false;this.moving=false;this.looking=false;this.velocity.set(0,0,0);
+    this.huntUntil=-Infinity;this.huntZoom=1;
   }
 
   manual(now: number, held = false): void { this.lastManual = now; this.held = held; this.reset(); }
 
   release(now:number):void { if(Number.isFinite(this.lastManual))this.manual(now); }
 
-  update(dt: number, now: number, camera: PerspectiveCamera, target: Vector3, ducks: readonly Vec2[]): boolean {
+  update(dt: number, now: number, camera: PerspectiveCamera, target: Vector3, ducks: readonly (Vec2 & {insect?:Vec2})[]): boolean {
     if(this.held || now-this.lastManual<FOLLOW_CAMERA.idleSeconds || !ducks.length)return false;
     if(!Number.isFinite(dt)||dt<=0)return true;
     dt=Math.min(dt,.05);
@@ -40,11 +45,22 @@ export class CameraFollow {
     this.lastUpdate=now;
     this.rawCentre.set(0,.65,0);
     for(const d of ducks){this.rawCentre.x+=d.x/ducks.length;this.rawCentre.z+=d.z/ducks.length;}
+    const hunters=ducks.filter(d=>d.insect);
+    if(hunters.length){
+      this.huntCentre.set(0,.65,0);
+      for(const d of hunters){
+        this.huntCentre.x+=(d.x+d.insect!.x)/(2*hunters.length);
+        this.huntCentre.z+=(d.z+d.insect!.z)/(2*hunters.length);
+      }
+      this.huntUntil=now+2;
+    }
+    const hunting=now<this.huntUntil;
+    if(hunting)this.rawCentre.lerp(this.huntCentre,.75);
     this.rawCentre.x=MathUtils.clamp(this.rawCentre.x,GARDEN.minX+.7,GARDEN.maxX-.7);
     this.rawCentre.z=MathUtils.clamp(this.rawCentre.z,GARDEN.minZ+.7,GARDEN.maxZ-.7);
     let radius=0;
     for(const d of ducks)radius=Math.max(radius,Math.hypot(d.x-this.rawCentre.x,d.z-this.rawCentre.z));
-    const response=1-Math.exp(-dt/FOLLOW_CAMERA.centreSeconds);
+    const response=1-Math.exp(-dt/(hunting?.45:FOLLOW_CAMERA.centreSeconds));
     if(!this.initialized){this.centre.copy(this.rawCentre);this.radius=radius;this.initialized=true;}
     else {this.centre.lerp(this.rawCentre,response);this.radius+=(radius-this.radius)*response;}
     const desiredDistance=Math.max(3,this.radius+FOLLOW_CAMERA.clearance);
@@ -89,8 +105,28 @@ export class CameraFollow {
     const gap=target.distanceTo(this.centre);
     if(gap>FOLLOW_CAMERA.lookStart)this.looking=true;
     else if(gap<FOLLOW_CAMERA.lookStop)this.looking=false;
-    if(this.looking)target.lerp(this.centre,Math.min(1-Math.exp(-dt/FOLLOW_CAMERA.aimSeconds),FOLLOW_CAMERA.lookSpeed*dt/gap));
+    if(this.looking)target.lerp(this.centre,Math.min(1-Math.exp(-dt/(hunting?.6:FOLLOW_CAMERA.aimSeconds)),(hunting?1.8:FOLLOW_CAMERA.lookSpeed)*dt/gap));
     camera.lookAt(target);
+    // Frame the known destination as soon as an insect appears, before the duck
+    // gets there. Optical widening works even when the hedge prevents retreat.
+    if(hunters.length){
+      camera.updateMatrixWorld(true);
+      const tan=Math.tan(MathUtils.degToRad(camera.fov/2));
+      let fit=1;
+      const include=(x:number,y:number,z:number)=>{
+        this.viewPoint.set(x,y,z).applyMatrix4(camera.matrixWorldInverse);
+        const depth=-this.viewPoint.z;
+        if(depth<=.1){fit=0;return;}
+        fit=Math.min(fit,.80*depth*tan*camera.aspect/Math.max(.001,Math.abs(this.viewPoint.x)),.80*depth*tan/Math.max(.001,Math.abs(this.viewPoint.y)));
+      };
+      for(const d of ducks){include(d.x,.15,d.z);include(d.x,1.35,d.z);if(d.insect)include(d.insect.x,.5,d.insect.z);}
+      // Hold the widest requested view throughout a hunt; no breathing in/out
+      // as the bird runs towards the fly or the fly jitters.
+      this.huntZoom=Math.min(this.huntZoom,MathUtils.clamp(fit,Math.max(.45,tan/Math.tan(MathUtils.degToRad(60))),1));
+    }
+    if(!hunting)this.huntZoom=1;
+    const zoom=camera.zoom+(this.huntZoom-camera.zoom)*(1-Math.exp(-dt/(hunting?.55:3)));
+    if(Math.abs(zoom-camera.zoom)>1e-6){camera.zoom=zoom;camera.updateProjectionMatrix();}
     return true;
   }
 }
