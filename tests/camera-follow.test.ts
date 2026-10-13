@@ -39,14 +39,14 @@ test('follow starts after idle time and immediately yields to manual input, incl
  const follow=new CameraFollow(),camera=new PerspectiveCamera(),target=new Vector3(0,.65,0);
  camera.position.set(0,1.65,3.8);const ducks=[{x:2,z:0}];
  follow.manual(0);
- assert.equal(follow.update(.05,19,camera,target,ducks),false);
- assert.equal(follow.update(.05,21,camera,target,ducks),true);
+ assert.equal(follow.update(.05,4.9,camera,target,ducks),false);
+ assert.equal(follow.update(.05,5,camera,target,ducks),true);
  follow.manual(22,true);const before=camera.position.clone(),look=target.clone();
  assert.equal(follow.update(.05,80,camera,target,ducks),false);
  assert.deepEqual(camera.position,before);assert.deepEqual(target,look);
  follow.manual(81);
- assert.equal(follow.update(.05,100,camera,target,ducks),false);
- assert.equal(follow.update(.05,102,camera,target,ducks),true);
+ assert.equal(follow.update(.05,85.9,camera,target,ducks),false);
+ assert.equal(follow.update(.05,86,camera,target,ducks),true);
 });
 
 test('automatic following stays slow, inside the hedge and clear of every duck',()=>{

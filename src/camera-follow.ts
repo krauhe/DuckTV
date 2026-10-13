@@ -2,7 +2,7 @@ import { MathUtils, Vector3, type PerspectiveCamera } from 'three';
 import { GARDEN, type Vec2 } from './types';
 
 export const FOLLOW_CAMERA = {
-  idleSeconds:20, clearance:1.9, speed:.24, lookSpeed:.32,
+  idleSeconds:5, clearance:1.9, speed:.24, lookSpeed:.32,
   centreSeconds:1.2, velocitySeconds:.8, aimSeconds:1.5,
   moveStart:.28, moveStop:.09, lookStart:.16, lookStop:.045,
 };

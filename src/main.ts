@@ -17,6 +17,7 @@ import { CameraFollow } from './camera-follow';
 import { getDaylight, getSceneDate, formatTime } from './daylight';
 import {initialPreferences,writePreferences,type Preferences} from './preferences';
 import {BackgroundMusic} from './background-music';
+import {BehaviorNotices} from './behavior-notices';
 
 const $=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
 startAnalytics();
@@ -24,6 +25,11 @@ let preferenceStorage:Storage|undefined;
 try{preferenceStorage=localStorage;}catch{/* Storage may be disabled. */}
 const preferences=initialPreferences(preferenceStorage,new Date());
 const savePreferences=()=>{if(preferenceStorage)writePreferences(preferenceStorage,preferences);};
+const behaviorNotices=new BehaviorNotices($('behavior-notices'));
+const behaviorSwitch=$<HTMLInputElement>('behavior-toggle');
+behaviorSwitch.checked=preferences.showBehavior;
+behaviorSwitch.addEventListener('change',()=>{preferences.showBehavior=behaviorSwitch.checked;savePreferences();if(!preferences.showBehavior)behaviorNotices.clear();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)behaviorNotices.clear();});
 const musicSwitch=$<HTMLInputElement>('music-toggle');
 musicSwitch.checked=preferences.music;
 const music=new BackgroundMusic(new Audio(new URL('audio/music/Tropical-Pixel-Lounge.mp3',document.baseURI).href),preferences.music,message=>{$('music-note').textContent=message;$('music-note').hidden=!message;});
@@ -138,7 +144,12 @@ canvas.addEventListener('pointerleave',()=>pointerRing.visible=false);
 canvas.addEventListener('pointercancel',e=>feedGesture.cancel(e.pointerId));
 canvas.addEventListener('lostpointercapture',e=>feedGesture.cancel(e.pointerId));
 addEventListener('blur',()=>feedGesture.reset());
-canvas.addEventListener('pointerup',e=>{if(!feedGesture.up(e.pointerId,e.button,e.clientX,e.clientY,performance.now()))return;const p=pointAt(e.clientX,e.clientY);if(p)cast(p.x,p.z)});
+canvas.addEventListener('pointerup',e=>{
+ if(!feedGesture.up(e.pointerId,e.button,e.clientX,e.clientY,performance.now()))return;
+ // Første tryk uden for menuen lukker den uden samtidig at kaste pasta.
+ if(dock.classList.contains('open')){showDock(false);return;}
+ const p=pointAt(e.clientX,e.clientY);if(p)cast(p.x,p.z);
+});
 const fullscreenSwitch=$<HTMLInputElement>('fullscreen');
 const syncFullscreen=()=>{fullscreenSwitch.checked=!!document.fullscreenElement;};
 fullscreenSwitch.addEventListener('change',async()=>{
@@ -210,6 +221,7 @@ function frame(now:number){
  constrainGardenCamera(camera,controls.target,previousCameraPosition);
  sim.setViewer(camera.position.x,camera.position.z);
  updateDaylight(dt);sim.update(dt);environment.update(sim.time,dt);environment.setShelterDoor(sim.shelterDoor.closed);
+ behaviorNotices.update(sim.ducks,now,preferences.showBehavior&&!$('app').classList.contains('crt-boot'));
  eggs.update(sim.time,dt,sim.ducks,camera);forageHoles.update(sim.time);
  for(let i=0;i<sim.ducks.length;i++){
   const d=sim.ducks[i],m=duckModels[i];m.group.position.set(d.x,d.y,d.z);m.group.rotation.y=d.heading;

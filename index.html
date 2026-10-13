@@ -23,12 +23,19 @@
    <label class="switch-row" for="fullscreen"><span><span class="control-picture" aria-hidden="true">⛶</span>Fuld skærm</span><span class="switch-state" aria-hidden="true"></span><input id="fullscreen" type="checkbox" role="switch"/><span class="switch-track" aria-hidden="true"></span></label>
    <label class="switch-row" for="music-toggle"><span><span class="control-picture" aria-hidden="true">♫</span>Musik</span><span class="switch-state" aria-hidden="true"></span><input id="music-toggle" type="checkbox" role="switch" aria-describedby="music-note"/><span class="switch-track" aria-hidden="true"></span></label>
    <p id="music-note" class="settings-note" aria-live="polite" hidden></p>
+   <label class="switch-row" for="behavior-toggle"><span><span class="control-picture" aria-hidden="true">☷</span>Vis andeadfærd</span><span class="switch-state" aria-hidden="true"></span><input id="behavior-toggle" type="checkbox" role="switch"/><span class="switch-track" aria-hidden="true"></span></label>
    </section></div>
    <p class="settings-note desktop-help">Klik: pasta · venstre træk: drej · højre træk: flyt · piltaster: gå rundt</p>
    <p class="settings-note touch-help">Tryk kort: pasta · én finger: drej · to fingre: flyt og zoom</p>
    <a href="https://open-meteo.com/" target="_blank" rel="noopener">Vejrdata: Open-Meteo · CC BY 4.0</a>
    </div>
   </aside>
-  <div id="loading" role="status" aria-label="TV tænder"><button id="tv-start" hidden><span aria-hidden="true">⏻</span>Tænd TV<small>En lille pause i andehaven</small></button></div>
+  <ul id="behavior-notices" aria-live="polite" aria-relevant="additions" aria-label="Ændernes aktiviteter"></ul>
+  <div id="loading" role="status" aria-label="TV tænder">
+   <div class="startup-screen">
+    <div class="startup-brand"><img src="./gistrup-ande-tv.png" width="78" height="78" alt=""/><span>Gistrup<br>Ande TV</span></div>
+    <button id="tv-start" hidden><span aria-hidden="true">⏻</span>Tænd TV</button>
+   </div>
+  </div>
  </main><script type="module" src="/src/main.ts"></script>
 </body></html>
