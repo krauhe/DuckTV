@@ -52,6 +52,10 @@ Thumbs.db
 !public/ande-tv-qr.png
 !public/ande-tv-qr-print.png
 
-# Owner-requested README comparison: only these two images are public.
+# Owner-requested README comparison images.
 !docs/images/vores-aender-foto.jpg
 !docs/images/vores-aender-modeller.png
+!docs/images/fra-have-til-ande-tv.png
+
+# Background track selected for Ande TV.
+!public/audio/music/Tropical-Pixel-Lounge.mp3

@@ -285,7 +285,7 @@ function combineRigidDetails(parent: THREE.Object3D): void {
 }
 
 export function createDuck(kind: DuckKind): {
-  group: THREE.Group; animate: (pose: DuckPose) => void; setDetailDistance:(distance:number)=>void;
+  group: THREE.Group; animate: (pose: DuckPose) => void;
 } {
   const p = PALETTES[kind];
   const group = new THREE.Group();
@@ -843,12 +843,6 @@ export function createDuck(kind: DuckKind): {
 
   animate({ state: 'rest', speed: 0, time: 0, look: 0, peck: 0,
     upright: 1, headTilt: 0, displayDip: 0 });
-  const setDetailDistance=(distance:number)=>{
-    // Hysteresis avoids flicker at the detail boundary. Base skins remain visible.
-    if(distance>6)bodyFeathers.visible=false;else if(distance<5.2)bodyFeathers.visible=true;
-    if(distance>4.5)headDown.visible=false;else if(distance<3.8)headDown.visible=true;
-    if(distance>5.2)recordedNeck.feathers.visible=false;else if(distance<4.5)recordedNeck.feathers.visible=true;
-  };
-  return { group, animate, setDetailDistance };
+  return { group, animate };
 }
 

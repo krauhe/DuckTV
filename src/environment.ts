@@ -3,8 +3,10 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GARDEN, POND } from './types';
 import { createShelter, SHELTER, gardenGroundHeight } from './shelter';
 import { createSky } from './sky';
+import { createNightSky } from './night-sky';
 import { createRainImpacts } from './rain-impacts';
 import { lawnTexture, lawnMarkMask } from './lawn-texture';
+import { createHedgeDetails } from './hedge';
 
 type Weather = { cloud: number; wind: number; rain: number; isDay: boolean };
 type Ripple = { x: number; z: number; start: number; strength: number; line: THREE.LineLoop };
@@ -67,6 +69,7 @@ export function createEnvironment(scene: THREE.Scene): {
   ripple(x: number, z: number, strength?: number): void;
   setWeather(weather: Weather): void;
   setDaylight(light: number, phase: number): void;
+  setSkyDate(date:Date):void;
   setShelterDoor(closed:number):void;
 } {
   const rand = random(75129);
@@ -79,29 +82,8 @@ export function createEnvironment(scene: THREE.Scene): {
   scene.fog = fog;
   const sky=createSky(scene);
 
-  // Distant points belong to the sky, so local garden fog must not erase them.
-  const starRandom=random(9260),starPositions:number[]=[],starColors:number[]=[];
-  for(let i=0;i<550;i++){
-    const elevation=.10+starRandom()*.90,azimuth=starRandom()*TAU;
-    const horizontal=Math.sqrt(1-elevation*elevation)*65;
-    starPositions.push(Math.cos(azimuth)*horizontal,elevation*65,Math.sin(azimuth)*horizontal);
-    const brightness=.45+starRandom()*.55;
-    starColors.push(brightness*.90,brightness*.95,brightness);
-  }
-  const starGeometry=new THREE.BufferGeometry();
-  starGeometry.setAttribute('position',new THREE.Float32BufferAttribute(starPositions,3));
-  starGeometry.setAttribute('color',new THREE.Float32BufferAttribute(starColors,3));
-  const starPixels=new Uint8Array(32*32*4);
-  for(let y=0;y<32;y++)for(let x=0;x<32;x++){
-    const index=(y*32+x)*4,r=Math.hypot((x-15.5)/15.5,(y-15.5)/15.5);
-    starPixels[index]=starPixels[index+1]=starPixels[index+2]=255;
-    starPixels[index+3]=Math.round(255*(1-THREE.MathUtils.smoothstep(r,.12,.95)));
-  }
-  const starMap=new THREE.DataTexture(starPixels,32,32);starMap.needsUpdate=true;
-  starMap.magFilter=starMap.minFilter=THREE.LinearFilter;
-  const starMaterial=new THREE.PointsMaterial({size:2.8,sizeAttenuation:false,map:starMap,vertexColors:true,
-    transparent:true,opacity:0,depthWrite:false,fog:false,toneMapped:false});
-  const stars=new THREE.Points(starGeometry,starMaterial);stars.name='night-stars';stars.renderOrder=-2;scene.add(stars);
+  const nightSky=createNightSky(scene);
+  nightSky.setDate(new Date());
 
   const hemi = new THREE.HemisphereLight(0xdff6ff, 0x80a565, 2.15);
   scene.add(hemi);
@@ -305,8 +287,8 @@ export function createEnvironment(scene: THREE.Scene): {
   hills.instanceMatrix.needsUpdate = true;
   hills.frustumCulled = false;
   scene.add(hills);
-  const hedgeGeo = new THREE.IcosahedronGeometry(1, 1);
-  const hedgeMat = new THREE.MeshStandardMaterial({ color: 0x4f9050, roughness: 1, flatShading: true });
+  const hedgeGeo = new THREE.IcosahedronGeometry(1, 2);
+  const hedgeMat = new THREE.MeshStandardMaterial({ color: 0x365f32, roughness: 1 });
   const hedgePositions: Array<[number, number, number, number]> = [];
   for (let x = GARDEN.minX-1.3; x <= GARDEN.maxX+1.3; x += .7) {
     hedgePositions.push([x,GARDEN.minZ-1.3,.95,.88+rand()*.12]);
@@ -327,6 +309,8 @@ export function createEnvironment(scene: THREE.Scene): {
   hedges.castShadow = true;
   hedges.receiveShadow = true;
   scene.add(hedges);
+  hedges.name='hedge-core';
+  scene.add(createHedgeDetails(hedgePositions,hedgeMat));
 
   // Small daisies and buttercups gather mainly near the garden edges.
   const stemGeo = new THREE.CylinderGeometry(0.008, 0.012, 0.19, 4);
@@ -447,6 +431,7 @@ export function createEnvironment(scene: THREE.Scene): {
     targetSunColor.set(daylight>.8 ? 0xfff2d1 : daylight>.1 ? 0xffbf87 : 0xa8bde2);
     targetCloudOpacity = weather.isDay ? 0.7 + cloudiness * 0.2 : 0.36;
     targetCloudColor.set(0xffffff).lerp(new THREE.Color(0x566474),Math.min(.9,cloudiness*.45+Math.min(1,weather.rain/2)*.5));
+    targetCloudColor.lerp(new THREE.Color(0x404953),1-daylight);
     targetWaterColor.set(weather.isDay ? 0x68cdef : 0x477b9f);
     rain.visible = weather.rain > 0;
     rainGeometry.setDrawRange(0,Math.min(rainCount,Math.round(160+weather.rain*320))*2);
@@ -491,9 +476,7 @@ export function createEnvironment(scene: THREE.Scene): {
     cloudMat.color.lerp(targetCloudColor,weatherBlend);
     rainImpacts.update(Math.max(0,dt),daylight,waterContains);
     waterMaterial.color.lerp(targetWaterColor, weatherBlend);
-    const starVisibility=(1-THREE.MathUtils.smoothstep(daylight,.02,.35))*Math.pow(1-weather.cloud/100,2);
-    starMaterial.opacity=THREE.MathUtils.lerp(starMaterial.opacity,starVisibility,weatherBlend);
-    stars.visible=starMaterial.opacity>.002;
+    nightSky.update(weather.cloud,weatherBlend);
     const wind = Math.min(weather.wind, 20);
     const sway = Math.min(wind / 15, 0.55);
     for (let i = 0; i < grassCount; i++) {
@@ -594,5 +577,5 @@ export function createEnvironment(scene: THREE.Scene): {
     sun.position.set(-Math.cos(phase*Math.PI)*8,Math.max(1,Math.sin(phase*Math.PI)*10),4);
     setWeather({...weather,isDay:daylight>.3});
   }
-  return { ground, update, ripple, setWeather, setDaylight, setShelterDoor:shelter.setDoor };
+  return { ground, update, ripple, setWeather, setDaylight, setSkyDate:nightSky.setDate, setShelterDoor:shelter.setDoor };
 }

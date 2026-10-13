@@ -10,22 +10,25 @@
    <button id="dock-toggle" aria-expanded="false" aria-controls="dock-content"><svg class="settings-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg><span>Indstillinger</span><svg class="settings-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m6 12 4-4 4 4"/></svg></button>
    <div id="dock-content" inert>
    <div class="dock-grid">
-   <section><h2>Døgnet i Gistrup</h2>
-   <label for="time-mode">Tidspunkt</label><select id="time-mode"><option value="live">Følg tiden i Gistrup</option><option value="manual">Vælg klokkeslæt</option><option value="cycle">Døgnforløb · 5 minutter</option></select>
-   <label for="day-time">Klokken <output id="clock-label">--:--</output></label><input id="day-time" type="range" min="0" max="1439" step="1" value="720"/>
+   <section><h2><span class="menu-picture sun-picture" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M24 3v5m0 32v5M3 24h5m32 0h5M9 9l4 4m22 22 4 4M9 39l4-4M35 13l4-4"/><circle cx="24" cy="24" r="12"/><path class="picture-face" d="M19 23h.1M29 23h.1m-10 5q5 5 10 0"/></svg></span>Døgnet i Gistrup</h2>
+   <select id="time-mode" aria-label="Tidspunkt"><option value="live">Følg tiden i Gistrup</option><option value="manual">Vælg klokkeslæt</option><option value="cycle">Døgnforløb · 5 minutter</option></select>
+   <div id="manual-time" hidden><label for="day-time">Klokken <output id="clock-label">--:--</output></label><input id="day-time" type="range" min="0" max="1439" step="1" value="720"/></div>
    <p id="sun-times" class="settings-note"></p>
-   </section><section><h2>Vejr og billede</h2>
-   <label for="weather">Vejret i haven</label><select id="weather"><option value="live" selected>Følg vejret i Gistrup</option><option value="sun">Sol og lette skyer</option><option value="cloud">Overskyet</option><option value="rain">En stille regnbyge</option></select>
+   </section><section><h2><span class="menu-picture cloud-picture" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M12 34a9 9 0 0 1-1-18 13 13 0 0 1 25-1 10 10 0 0 1 0 20H12Z"/><path class="picture-face" d="M19 25h.1M29 25h.1m-10 5q5 4 10 0"/></svg></span>Vejret i haven</h2>
+   <select id="weather" aria-label="Vejret i haven"><option value="live" selected>Følg vejret i Gistrup</option><option value="sun">Klart med lette skyer</option><option value="cloud">Overskyet</option><option value="rain">En stille regnbyge</option></select>
+   <p class="settings-note">Måne og stjerner følger Gistrups himmel. Skydække skjuler dem; vælg klart vejr for at se nattehimlen.</p>
    <p id="weather-label" class="settings-note">En rolig dag</p>
-   </section><section><h2>Kamera</h2>
-   <label class="switch-row" for="auto-follow"><span>Følg flokken</span><span class="switch-state" aria-hidden="true"></span><input id="auto-follow" type="checkbox" role="switch" checked/><span class="switch-track" aria-hidden="true"></span></label>
-   <label class="switch-row" for="fullscreen"><span>Fuld skærm</span><span class="switch-state" aria-hidden="true"></span><input id="fullscreen" type="checkbox" role="switch"/><span class="switch-track" aria-hidden="true"></span></label>
+   </section><section><h2><span class="menu-picture duck-picture" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M9 24q3 4 10 3v-9a9 9 0 0 1 18 0v12q0 12-15 12T9 24Z"/><path class="duck-bill" d="m36 18 8 4-8 3"/><path class="picture-face" d="M30 17h.1M16 31q4 6 10 1"/></svg></span>Indstillinger</h2>
+   <label class="switch-row" for="auto-follow"><span><span class="control-picture" aria-hidden="true">↝</span>Følg flokken</span><span class="switch-state" aria-hidden="true"></span><input id="auto-follow" type="checkbox" role="switch" checked/><span class="switch-track" aria-hidden="true"></span></label>
+   <label class="switch-row" for="fullscreen"><span><span class="control-picture" aria-hidden="true">⛶</span>Fuld skærm</span><span class="switch-state" aria-hidden="true"></span><input id="fullscreen" type="checkbox" role="switch"/><span class="switch-track" aria-hidden="true"></span></label>
+   <label class="switch-row" for="music-toggle"><span><span class="control-picture" aria-hidden="true">♫</span>Musik</span><span class="switch-state" aria-hidden="true"></span><input id="music-toggle" type="checkbox" role="switch" aria-describedby="music-note"/><span class="switch-track" aria-hidden="true"></span></label>
+   <p id="music-note" class="settings-note" aria-live="polite" hidden></p>
    </section></div>
    <p class="settings-note desktop-help">Klik: pasta · venstre træk: drej · højre træk: flyt · piltaster: gå rundt</p>
    <p class="settings-note touch-help">Tryk kort: pasta · én finger: drej · to fingre: flyt og zoom</p>
    <a href="https://open-meteo.com/" target="_blank" rel="noopener">Vejrdata: Open-Meteo · CC BY 4.0</a>
    </div>
   </aside>
-  <div id="loading" role="status" aria-label="TV tænder"></div>
+  <div id="loading" role="status" aria-label="TV tænder"><button id="tv-start" hidden><span aria-hidden="true">⏻</span>Tænd TV<small>En lille pause i andehaven</small></button></div>
  </main><script type="module" src="/src/main.ts"></script>
 </body></html>

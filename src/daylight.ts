@@ -27,6 +27,22 @@ function localParts(date: Date) {
     .map(part => [part.type, Number(part.value)]));
 }
 
+/** Resolve the selected Copenhagen wall clock to a UTC instant for the sky. */
+export function getSceneDate(date:Date,minuteOverride?:number):Date {
+ if(!Number.isFinite(date.getTime()))throw new RangeError('Invalid sky date');
+ if(minuteOverride===undefined||!Number.isFinite(minuteOverride))return new Date(date);
+ const local=localParts(date),minutes=Math.max(0,Math.min(1439,minuteOverride));
+ const wall=Date.UTC(local.year,local.month-1,local.day)+minutes*60000;
+ let instant=wall;
+ // Re-evaluate the UTC offset at the selected time, including summer time.
+ for(let i=0;i<3;i++){
+  const p=localParts(new Date(instant));
+  const offset=Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second)-Math.floor(instant/1000)*1000;
+  const next=wall-offset;if(Math.abs(next-instant)<1)return new Date(next);instant=next;
+ }
+ return new Date(instant);
+}
+
 let cached: { key: string; sunrise: number; sunset: number } | undefined;
 
 function solarTimes(year: number, month: number, day: number) {

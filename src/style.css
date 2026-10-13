@@ -32,6 +32,11 @@
 .crt-on .topbar,.crt-on .control-dock{animation:crt-interface 4.8s ease-out both}
 #loading.error{background:#080d0b;pointer-events:auto}
 #loading.error::before,#loading.error::after{display:none}
+#tv-start{display:grid;justify-items:center;gap:12px;border:1px solid #d5e5be50;border-radius:26px;padding:28px 36px;background:#123d2c;color:#f1e6bf;font:700 22px "Trebuchet MS",sans-serif;box-shadow:0 0 60px #9cdb8620}
+#tv-start[hidden]{display:none}
+#tv-start>span{font-size:38px;color:#c7d99d}
+#tv-start small{font-size:12px;font-weight:400;color:#bfceb9}
+#tv-start:hover{background:#1c5038}
 @keyframes crt-beam{
  0%,8%{opacity:0;transform:translate(-50%,-50%) scale(1)}
  14%{opacity:1;transform:translate(-50%,-50%) scale(5,1)}
@@ -97,3 +102,62 @@
 input:checked+.switch-track{background:#03522d}input:checked+.switch-track::after{transform:translateX(16px)}
 #settings .switch-row:has(input:focus-visible){outline:3px solid #b78631;outline-offset:3px}
 @media(prefers-reduced-motion:reduce){#settings .switch-row,.switch-track::after{transition:none}}
+
+/* Havens grønne panel: samme anker i begge retninger, kun indholdet ruller.
+   .control-dock.open skal vinde over den sammenklappede menus bredde. */
+#settings.control-dock{
+ --dock-bottom:max(12px,env(safe-area-inset-bottom));
+ position:fixed;top:auto;right:auto;bottom:var(--dock-bottom);left:50%;
+ width:184px;max-width:calc(100% - 24px);max-height:calc(100dvh - var(--dock-bottom) - max(12px,env(safe-area-inset-top)));
+ display:flex;flex-direction:column;overflow:hidden;padding:0 18px;
+ background:#123d2cf5;color:#f6f3df;border-color:#e2edcf50;border-radius:25px;
+ box-shadow:0 12px 40px #09261940;
+}
+#settings.control-dock.open{
+ width:min(860px,calc(100% - max(24px,env(safe-area-inset-left)) - max(24px,env(safe-area-inset-right))));
+ padding:0 20px;background:#123d2cf5;color:#f6f3df;border-radius:24px;
+}
+#settings #dock-toggle{flex:none;min-height:50px;color:#f6f3df}
+#settings .settings-icon circle,#settings.open .settings-icon circle{fill:#123d2c}
+#settings #dock-content{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#b1c5a7 transparent;padding:18px 0 20px;border-top:1px solid #e2edcf25}
+#settings .dock-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+#settings .dock-grid>section{min-width:0;padding:0 14px 0 0;border-right:1px solid #e2edcf20}
+#settings .dock-grid>section:last-child{padding-right:0;border-right:0}
+#settings h2{color:#e6d9a7;font-size:12px;font-weight:650;letter-spacing:.4px;margin:0 0 16px}
+#settings label{color:#edf2e3;font-size:12px;font-weight:500}
+#settings select{min-height:44px;background:#f1f3e5;color:#234934;border:1px solid #ecf1dc60;border-radius:12px;font-size:14px;padding:10px;max-width:100%}
+#settings input[type=range]{accent-color:#ddcd8c;min-height:36px;margin:0}
+#settings .settings-note{color:#bfceb9;font-size:11px;line-height:1.6}
+#settings a{color:#b9cbb3;font-size:10px}
+#settings .switch-row,#settings .switch-row:has(input:checked){background:#eff5df0c;color:#edf2e3;border:1px solid #e2edcf18;padding:10px;gap:8px;font-size:12px}
+#settings .switch-track{background:#567060}
+#settings input:checked+.switch-track{background:#c7d99d}
+#settings input:checked+.switch-track::after{background:#19442e}
+#settings .desktop-help,#settings .touch-help{border-top:1px solid #e2edcf20;padding-top:14px;margin-top:18px}
+@media(max-width:700px){
+ #settings.control-dock.open{width:calc(100% - max(12px,env(safe-area-inset-left)) - max(12px,env(safe-area-inset-right)));padding:0 16px}
+ #settings .dock-grid{grid-template-columns:1fr;gap:20px}
+ #settings .dock-grid>section{border-right:0;border-bottom:1px solid #e2edcf20;padding:0 0 16px}
+ #settings .dock-grid>section:last-child{border-bottom:0;padding-bottom:0}
+ #settings select{font-size:16px}
+}
+@media(pointer:coarse){#settings select{font-size:16px}}
+
+/* Tegnede figurer og afrundede kort gør menuen til en del af haven. */
+#settings{font-family:"Trebuchet MS","Arial Rounded MT Bold","Segoe UI",sans-serif}
+#settings.control-dock.open{padding:0 18px;background:#123d2cf7}
+#settings #dock-toggle{font-family:inherit;font-size:15px;font-weight:700}
+#settings .dock-grid{gap:12px}
+#settings .dock-grid>section,#settings .dock-grid>section:last-child{padding:14px;border:1px solid #f1f3da24;border-radius:20px;background:#e9f1ce09}
+#settings h2{display:flex;align-items:center;gap:9px;min-height:44px;color:#f1e6bf;font-size:15px;letter-spacing:0;line-height:1.25;margin-bottom:16px}
+.menu-picture{display:grid;place-items:center;width:44px;height:44px;flex:none;border-radius:15px;transform:rotate(-6deg);background:#f4d88d}
+.menu-picture svg{width:34px;height:34px;fill:#f7d068;stroke:#72572c;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.menu-picture .picture-face{fill:none;stroke:#34513a;stroke-width:2.8}
+.cloud-picture{background:#cce2de;transform:rotate(5deg)}
+.cloud-picture svg{fill:#f4f4e8;stroke:#648b83}
+.duck-picture{background:#e5dfb3;transform:rotate(-4deg)}
+.duck-picture svg{fill:#f4edcd;stroke:#677e42}
+.duck-picture .duck-bill{fill:#e6b65a;stroke:#a47836}
+.control-picture{display:inline-block;min-width:23px;color:#e8d58e;font-size:22px;line-height:1;vertical-align:middle}
+#settings .switch-row{min-height:48px}
+@media(max-width:700px){#settings .dock-grid{gap:12px}#settings h2{margin-bottom:10px}}

@@ -14,8 +14,9 @@ import { GARDEN, POND } from './types';
 import { FeedGesture } from './pointer-gesture';
 import { constrainGardenCamera } from './camera-bounds';
 import { CameraFollow } from './camera-follow';
-import { getDaylight, formatTime } from './daylight';
+import { getDaylight, getSceneDate, formatTime } from './daylight';
 import {initialPreferences,writePreferences,type Preferences} from './preferences';
+import {BackgroundMusic} from './background-music';
 
 const $=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
 startAnalytics();
@@ -23,6 +24,16 @@ let preferenceStorage:Storage|undefined;
 try{preferenceStorage=localStorage;}catch{/* Storage may be disabled. */}
 const preferences=initialPreferences(preferenceStorage,new Date());
 const savePreferences=()=>{if(preferenceStorage)writePreferences(preferenceStorage,preferences);};
+const musicSwitch=$<HTMLInputElement>('music-toggle');
+musicSwitch.checked=preferences.music;
+const music=new BackgroundMusic(new Audio(new URL('audio/music/Tropical-Pixel-Lounge.mp3',document.baseURI).href),preferences.music,message=>{$('music-note').textContent=message;$('music-note').hidden=!message;});
+musicSwitch.addEventListener('change',()=>{preferences.music=musicSwitch.checked;savePreferences();music.setEnabled(preferences.music);});
+// Browseren kræver et tryk eller tastetryk før første afspilning.
+document.addEventListener('pointerup',e=>{if(!(e.target instanceof Element&&e.target.closest('#music-toggle')))music.start();});
+document.addEventListener('keydown',e=>{if(!e.repeat&&!(e.target instanceof Element&&e.target.closest('#music-toggle')))music.start();});
+document.addEventListener('visibilitychange',()=>music.setVisible(!document.hidden));
+addEventListener('pagehide',()=>music.setVisible(false));
+addEventListener('pageshow',()=>music.setVisible(!document.hidden));
 $<HTMLSelectElement>('weather').value=preferences.weather;
 $<HTMLSelectElement>('time-mode').value=preferences.timeMode;
 $<HTMLInputElement>('auto-follow').checked=preferences.autoFollow;
@@ -139,25 +150,25 @@ document.addEventListener('fullscreenchange',syncFullscreen);
 if(!document.fullscreenEnabled)fullscreenSwitch.closest('label')!.hidden=true;
 
 const dock=$('settings'),dockContent=$('dock-content');
-let dockPinned=false;
 function showDock(open:boolean){dock.classList.toggle('open',open);dockContent.inert=!open;$('dock-toggle').setAttribute('aria-expanded',String(open));}
-dock.addEventListener('pointerenter',e=>{if(e.pointerType==='mouse')showDock(true)});
-dock.addEventListener('pointerleave',()=>{if(!dockPinned&&!dock.contains(document.activeElement))showDock(false)});
-dock.addEventListener('focusin',()=>showDock(true));
-dock.addEventListener('focusout',()=>{setTimeout(()=>{if(!dockPinned&&!dock.contains(document.activeElement)&&!dock.matches(':hover'))showDock(false)},0)});
-$('dock-toggle').addEventListener('click',()=>{dockPinned=!dockPinned;showDock(dockPinned)});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){dockPinned=false;showDock(false);$('dock-toggle').focus();showDock(false)}});
+// Et eksplicit tryk giver samme tilstand med mus, touch og efter skærmrotation.
+$('dock-toggle').addEventListener('click',()=>showDock(!dock.classList.contains('open')));
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&dock.classList.contains('open')){showDock(false);$('dock-toggle').focus();}});
 const timeMode=$<HTMLSelectElement>('time-mode'),daySlider=$<HTMLInputElement>('day-time');
+const syncTimeControl=()=>{$('manual-time').hidden=timeMode.value!=='manual';};
+syncTimeControl();
 let dayMinutes=preferences.timeMode==='live'?getDaylight(new Date()).minutes:preferences.minutes??getDaylight(new Date()).minutes;
 daySlider.value=String(Math.floor(dayMinutes));
 let clockTick=1;
 daySlider.addEventListener('input',()=>{timeMode.value='manual';dayMinutes=Number(daySlider.value);clockTick=1;preferences.timeMode='manual';preferences.minutes=dayMinutes;savePreferences();});
-timeMode.addEventListener('change',()=>{clockTick=1;preferences.timeMode=timeMode.value as Preferences['timeMode'];preferences.minutes=dayMinutes;savePreferences();});
+timeMode.addEventListener('change',()=>{syncTimeControl();clockTick=1;preferences.timeMode=timeMode.value as Preferences['timeMode'];preferences.minutes=dayMinutes;savePreferences();});
 addEventListener('pagehide',()=>{preferences.minutes=dayMinutes;savePreferences();});
 function updateDaylight(dt:number){
  if(timeMode.value==='cycle')dayMinutes=(dayMinutes+dt*1440/300)%1440;
  clockTick+=dt;if(clockTick<.2)return;clockTick=0;
- const day=getDaylight(new Date(),timeMode.value==='live'?undefined:dayMinutes);
+ const now=new Date(),override=timeMode.value==='live'?undefined:dayMinutes;
+ const day=getDaylight(now,override);
+ environment.setSkyDate(getSceneDate(now,override));
  dayMinutes=day.minutes;daySlider.value=String(Math.floor(day.minutes));
  $('clock-label').textContent=formatTime(day.minutes);
  daySlider.setAttribute('aria-valuetext',formatTime(day.minutes));
@@ -208,7 +219,6 @@ function frame(now:number){
    fly.group.rotation.y=Math.sin(sim.time*.7+i)*.6;
    fly.wings.forEach((wing,index)=>wing.rotation.z=(index?1:-1)*Math.sin(sim.time*67)*.7);
   }
-  m.setDetailDistance(m.group.position.distanceTo(camera.position));
   m.animate({preenTarget:d.preenTarget,gesture:d.gesture,mouthOpen:d.mouthOpen,groundHeight:gardenGroundHeight,waterBob:d.state==='swim'?d.y-POND.waterY:0,speed:d.speed,time:sim.time+i*1.71,state:d.state,look:d.look,peck:d.peck,upright:d.upright,headTilt:d.headTilt,displayDip:d.displayDip,accelerationForward:d.ax*Math.sin(d.heading)+d.az*Math.cos(d.heading),accelerationSide:d.ax*Math.cos(d.heading)-d.az*Math.sin(d.heading),jumpProgress:d.jumpProgress,crouch:d.crouch,landing:d.landing});
   m.group.updateMatrixWorld(true);
   m.group.getObjectByName('duck-head')!.localToWorld(forageTip.set(0,.036,.30));
@@ -238,11 +248,20 @@ function frame(now:number){
  }
  for(const [id,mesh] of foods)if(!liveIds.has(id)){scene.remove(mesh);foods.delete(id);foodRotations.delete(id)}
  renderer.render(scene,camera);
- if(!crtStarted){crtStarted=true;$('app').classList.add('crt-on');crtCleanupTimer=window.setTimeout(finishCrt,6000);}
+ if(!crtReady){crtReady=true;if(preferences.music)$('tv-start').hidden=false;else startCrt();}
 }
-let crtStarted=false,crtCleanupTimer=0;
+let crtReady=false,crtStarted=false,crtCleanupTimer=0;
+function startCrt(){
+ if(crtStarted||!crtReady)return;
+ crtStarted=true;$('tv-start').hidden=true;
+ const duration=matchMedia('(prefers-reduced-motion:reduce)').matches ? .4 : 4.8;
+ music.beginBoot(duration);
+ $('app').classList.add('crt-on');crtCleanupTimer=window.setTimeout(finishCrt,(duration+1)*1000);
+}
+$('tv-start').addEventListener('click',startCrt);
 function finishCrt(){
  window.clearTimeout(crtCleanupTimer);
+ music.finishBoot();
  $('app').classList.remove('crt-boot','crt-on');loading.remove();
 }
 canvas.addEventListener('animationend',event=>{if(event.animationName==='crt-picture'||event.animationName==='crt-reduced')finishCrt();});

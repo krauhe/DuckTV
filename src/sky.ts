@@ -22,7 +22,7 @@ export function createSky(scene:THREE.Scene){
     sky=mix(sky,warm,glow*exp(-elevation*3.5));
     // Continuous soft overcast, including overhead and behind the viewer.
     float folds=sin(ray.x*13.0+sin(ray.z*9.0))*sin(ray.z*11.0+ray.y*7.0);
-    sky*=1.0+folds*.055*smoothstep(.55,1.0,cloudCover);
+    sky*=1.0+folds*.18*smoothstep(.55,1.0,cloudCover);
     gl_FragColor=vec4(sky,1.0);
     #include <colorspace_fragment>
    }`,
@@ -37,9 +37,9 @@ export function createSky(scene:THREE.Scene){
   set(light:number,cloud:number,sun:THREE.Vector3){
    targetCloud=cloud;
    targetWarmth=Math.pow(Math.max(0,Math.sin(Math.PI*light)),.7)*(1-cloud*.85);
-   horizon.set('#9edaf0').lerp(new THREE.Color('#b9c0c3'),cloud).lerp(new THREE.Color('#182c49'),1-light);
+   horizon.set('#9edaf0').lerp(new THREE.Color('#b9c0c3'),cloud).lerp(new THREE.Color('#182c49').lerp(new THREE.Color('#353a42'),cloud),1-light);
    horizon.lerp(new THREE.Color('#df8c91'),targetWarmth*.45);
-   zenith.set('#4c99da').lerp(new THREE.Color('#939da3'),cloud).lerp(new THREE.Color('#070e22'),1-light);
+   zenith.set('#4c99da').lerp(new THREE.Color('#939da3'),cloud).lerp(new THREE.Color('#070e22').lerp(new THREE.Color('#272c35'),cloud),1-light);
    zenith.lerp(new THREE.Color('#676b9a'),targetWarmth*.3);
    uniforms.sunDirection.value.set(sun.x,0,sun.z).normalize();
   },

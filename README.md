@@ -6,9 +6,9 @@ En interaktiv 3D-pauseskærm med vores fire løbeænder: tre hunner og én han. 
 
 ## Fra foto til 3D
 
-| Vores fire ænder | Modellerne i Ande TV |
-| :---: | :---: |
-| ![Vores fire løbeænder i haven](docs/images/vores-aender-foto.jpg) | ![De fire stiliserede 3D-modeller i tilsvarende opstilling](docs/images/vores-aender-modeller.png) |
+![Fra vores have til din skærm: et foto af de fire rigtige løbeænder ved siden af deres virtuelle dobbeltgængere, opstillet tilsvarende på græs foran hækken.](docs/images/fra-have-til-ande-tv.png)
+
+Det begyndte med vores egen have og fire løbeænder i Gistrup. Fotoet til venstre er forlægget; til højre er Ande TV's egne 3D-modeller opstillet med tilsvarende placering og retning på græs foran den virtuelle hæk. Den brune hun og hannen står bagest, den lyse og den brogede hun forrest. Farver, aftegninger og havens kendetegn er fortolket i en stiliseret 3D-verden.
 
 Klik på græsset for at kaste pasta. Træk med musen for at dreje kameraet, og brug musehjulet til at zoome. Kameraet kan også følge flokken automatisk.
 
@@ -24,3 +24,5 @@ pnpm dev
 Åbn adressen, som terminalen viser, normalt [localhost:5173](http://127.0.0.1:5173/). På Windows kan `Start-Ande-TV.ps1` også starte siden, når pakkerne er installeret.
 
 Bygget med TypeScript, Three.js og Vite. Kør `pnpm test` for tests og `pnpm build` for en produktionsbygning.
+
+Nattehimlen bruger [HYG-stjernekataloget](public/sky-credits.txt) og [Astronomy Engine](https://github.com/cosinekitty/astronomy).

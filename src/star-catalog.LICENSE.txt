@@ -1,0 +1,11 @@
+HYG v4.1 star catalogue — David Nash / Astronomy Nexus.
+Source: https://github.com/astronexus/HYG-Database/blob/main/hyg/CURRENT/hygdata_v41.csv
+Documentation: https://github.com/astronexus/HYG-Database/blob/main/hyg/README.md
+Licensed under Creative Commons Attribution-ShareAlike 4.0 International:
+https://creativecommons.org/licenses/by-sa/4.0/
+
+star-catalog.ts is a modified subset: stars with visual magnitude <= 5.5,
+excluding the Sun. Only J2000 right ascension, declination, magnitude and
+B-V colour index are retained. Missing colour indices default to 0.65.
+The subset remains licensed under CC BY-SA 4.0. This data license does
+not change the license of the application code.

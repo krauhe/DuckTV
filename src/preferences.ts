@@ -1,10 +1,10 @@
 import {getDaylight} from './daylight';
 export interface Preferences {
  weather:'live'|'sun'|'cloud'|'rain';timeMode:'live'|'manual'|'cycle';
- minutes:number|null;quality:'auto'|'low'|'high';autoFollow:boolean;sound:boolean;
+ minutes:number|null;quality:'auto'|'low'|'high';autoFollow:boolean;sound:boolean;music:boolean;
 }
 export const PREFERENCES_KEY='ducktv.preferences.v1';
-export const DEFAULT_PREFERENCES:Preferences={weather:'live',timeMode:'live',minutes:null,quality:'auto',autoFollow:true,sound:false};
+export const DEFAULT_PREFERENCES:Preferences={weather:'live',timeMode:'live',minutes:null,quality:'auto',autoFollow:true,sound:false,music:true};
 export function readPreferences(storage:Pick<Storage,'getItem'>):Preferences{
  const result={...DEFAULT_PREFERENCES};
  try{
@@ -16,6 +16,7 @@ export function readPreferences(storage:Pick<Storage,'getItem'>):Preferences{
   if(typeof value.minutes==='number'&&Number.isFinite(value.minutes)&&value.minutes>=0&&value.minutes<1440)result.minutes=value.minutes;
   if(typeof value.autoFollow==='boolean')result.autoFollow=value.autoFollow;
   if(typeof value.sound==='boolean')result.sound=value.sound;
+  if(typeof value.music==='boolean')result.music=value.music;
  }catch{/* Unavailable storage or old/corrupt data must not prevent startup. */}
  return result;
 }
