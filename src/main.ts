@@ -57,14 +57,6 @@ if (fpsSwitch && fpsCounter) {
   savePreferences();
  });
 }
-const fpsLimitSwitch = $<HTMLInputElement>('fps-limit-toggle');
-if (fpsLimitSwitch) {
- fpsLimitSwitch.checked = preferences.cap30Fps !== false;
- fpsLimitSwitch.addEventListener('change', () => {
-  preferences.cap30Fps = fpsLimitSwitch.checked;
-  savePreferences();
- });
-}
 const dofSwitch = $<HTMLInputElement>('dof-toggle');
 if (dofSwitch) {
  dofSwitch.checked = preferences.dof !== false;
@@ -613,7 +605,7 @@ let frameCount=0;
 let lastFpsTime=performance.now();
 const previousCameraPosition=new THREE.Vector3();
 function frame(now:number){
- const targetFps = preferences.cap30Fps !== false ? 30 : 60;
+ const targetFps = 30;
  const minInterval = (1000 / targetFps) - 2.5;
  if (now - lastRenderTime < minInterval) return;
  lastRenderTime = now;
@@ -812,7 +804,7 @@ function frame(now:number){
   if (preferences.showFps && fpsVal) {
    fpsVal.textContent = String(fps);
    if (fpsCounter) {
-    const target = preferences.cap30Fps !== false ? 30 : 60;
+    const target = 30;
     fpsCounter.classList.toggle('fps-low', fps < target * 0.8 && fps >= target * 0.55);
     fpsCounter.classList.toggle('fps-bad', fps < target * 0.55);
    }
