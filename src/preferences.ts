@@ -1,16 +1,16 @@
 import {getDaylight} from './daylight';
 export interface Preferences {
- weather:'live'|'sun'|'cloud'|'rain';timeMode:'live'|'manual'|'cycle';
- minutes:number|null;quality:'auto'|'low'|'high';autoFollow:boolean;sound:boolean;music:boolean;showBehavior:boolean;showFps?:boolean;cap30Fps?:boolean;
+ weather:'live'|'sun'|'cloud'|'rain'|'frost'|'snow';timeMode:'live'|'manual'|'cycle';
+ minutes:number|null;quality:'auto'|'low'|'high';autoFollow:boolean;sound:boolean;music:boolean;showBehavior:boolean;showFps?:boolean;cap30Fps?:boolean;dof?:boolean;
 }
 export const PREFERENCES_KEY='ducktv.preferences.v1';
-export const DEFAULT_PREFERENCES:Preferences={weather:'live',timeMode:'live',minutes:null,quality:'auto',autoFollow:true,sound:false,music:true,showBehavior:false,showFps:false,cap30Fps:true};
+export const DEFAULT_PREFERENCES:Preferences={weather:'live',timeMode:'live',minutes:null,quality:'auto',autoFollow:true,sound:false,music:true,showBehavior:false,showFps:false,cap30Fps:true,dof:true};
 export function readPreferences(storage:Pick<Storage,'getItem'>):Preferences{
  const result={...DEFAULT_PREFERENCES};
  try{
   const value=JSON.parse(storage.getItem(PREFERENCES_KEY)??'null');
   if(!value||typeof value!=='object')return result;
-  if(['live','sun','cloud','rain'].includes(value.weather))result.weather=value.weather;
+  if(['live','sun','cloud','rain','frost','snow'].includes(value.weather))result.weather=value.weather;
   if(['live','manual','cycle'].includes(value.timeMode))result.timeMode=value.timeMode;
   if(['auto','low','high'].includes(value.quality))result.quality=value.quality;
   if(typeof value.minutes==='number'&&Number.isFinite(value.minutes)&&value.minutes>=0&&value.minutes<1440)result.minutes=value.minutes;
@@ -20,6 +20,7 @@ export function readPreferences(storage:Pick<Storage,'getItem'>):Preferences{
   if(typeof value.showBehavior==='boolean')result.showBehavior=value.showBehavior;
   if(typeof value.showFps==='boolean')result.showFps=value.showFps;
   if(typeof value.cap30Fps==='boolean')result.cap30Fps=value.cap30Fps;
+  if(typeof value.dof==='boolean')result.dof=value.dof;
  }catch{/* Unavailable storage or old/corrupt data must not prevent startup. */}
  return result;
 }

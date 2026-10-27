@@ -59,14 +59,14 @@ function featherGeometry(scale:[number,number,number],position:[number,number,nu
 const cylinder = new THREE.CylinderGeometry(1, 1, 1, 8);
 const yAxis = new THREE.Vector3(0, 1, 0);
 
-function material(hex: string, roughness = 0.82): THREE.MeshPhysicalMaterial {
+function material(hex: string, roughness = 0.78): THREE.MeshPhysicalMaterial {
   return new THREE.MeshPhysicalMaterial({
     color: hex,
     roughness,
     metalness: 0.02,
-    sheen: 0.65,
-    sheenRoughness: 0.42,
-    sheenColor: new THREE.Color('#dcd4c8'),
+    sheen: 0.82,
+    sheenRoughness: 0.38,
+    sheenColor: new THREE.Color('#f0e8dc'),
   });
 }
 

@@ -35,3 +35,33 @@ test('closed shutter blocks a waking duck until raised above its head',()=>{
  resolveDuckContacts([duck],0);
  assert.ok(duck.z>blocked+.1,'raised door leaves the doorway open');
 });
+
+test('two approaching ducks yield and avoid deadlock vibration',()=>{
+ const sim=new Simulation(()=>0.5);
+ const d0=sim.ducks[0],d1=sim.ducks[1];
+ Object.assign(d0,{x:0,z:-1,heading:0,state:'wander'});
+ Object.assign(d1,{x:0,z:1,heading:Math.PI,state:'wander'});
+ (sim as any).intents.get(d0.id)!.target={x:0,z:2};
+ (sim as any).intents.get(d0.id)!.timer=5;
+ (sim as any).intents.get(d1.id)!.target={x:0,z:-2};
+ (sim as any).intents.get(d1.id)!.timer=5;
+ for(let step=0;step<120;step++){
+   sim.update(0.025);
+ }
+ const finalDist=Math.hypot(d0.x-d1.x,d0.z-d1.z);
+ assert.ok(finalDist>0.45,`ducks separated cleanly after encounter, final dist: ${finalDist}`);
+});
+
+test('a trailing duck can follow behind a walking duck ("gå bagefter")',()=>{
+ const sim=new Simulation(()=>0.5);
+ const leader=sim.ducks[0],follower=sim.ducks[1];
+ Object.assign(leader,{x:0,z:1.0,heading:0,state:'wander',speed:0.35});
+ Object.assign(follower,{x:0,z:0.2,heading:0,state:'wander'});
+ (sim as any).intents.get(leader.id)!.target={x:0,z:4};
+ (sim as any).intents.get(follower.id)!.target={x:0,z:4};
+ for(let step=0;step<40;step++){
+   sim.update(0.025);
+ }
+ const gap=Math.hypot(leader.x-follower.x,leader.z-follower.z);
+ assert.ok(gap>=0.40,`follower respects leader spacing, gap: ${gap}`);
+});

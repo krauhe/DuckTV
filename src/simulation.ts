@@ -206,6 +206,10 @@ interface Intent {
   snailCatchAt?: number;
   snailTimer?: number;
   lastGreetingWagAt?: number;
+  yieldUntil?: number;
+  yieldSide?: number;
+  contactDuckId?: string;
+  contactTime?: number;
 }
 
 const kinds: DuckKind[] = ['drake', 'buff', 'brown', 'pied'];
@@ -399,6 +403,7 @@ export class Simulation {
         peckTimer: 0, approachTravel: 0, approachPaused: false, pauseUntil: 0,
         pondVisitAt: this.range(BEHAVIOR.pondVisitMin, BEHAVIOR.pondVisitMax) + index * 3,
         swimUntil: 0, phase: 'shore', queueAt: Infinity, crossTime: 0,
+        yieldUntil: 0, yieldSide: 1,
       });
       return duck;
     });
@@ -487,6 +492,48 @@ export class Simulation {
           duck.gesture = { kind: 'tailWag', progress: 0, side: wagHash > 0.7 ? 1 : -1 };
           intent.gestureStarted = this.time;
           intent.lastGreetingWagAt = this.time;
+        }
+      }
+    }
+    // Deadlock detection: if two walking ducks are stuck in mutual contact, break deadlock immediately
+    for (let i = 0; i < this.ducks.length; i++) {
+      for (let j = i + 1; j < this.ducks.length; j++) {
+        const a = this.ducks[i], b = this.ducks[j];
+        const intentA = this.intents.get(a.id)!;
+        const intentB = this.intents.get(b.id)!;
+        const aWalking = (a.state === 'wander' || a.state === 'guard') && intentA.moved;
+        const bWalking = (b.state === 'wander' || b.state === 'guard') && intentB.moved;
+        if (!aWalking || !bWalking) {
+          if (intentA.contactDuckId === b.id) { intentA.contactDuckId = undefined; intentA.contactTime = 0; }
+          if (intentB.contactDuckId === a.id) { intentB.contactDuckId = undefined; intentB.contactTime = 0; }
+          continue;
+        }
+        if (intentA.retreating || intentB.retreating || this.foods.some(f => !f.eaten) || this.courtship) continue;
+        const dist = Math.hypot(a.x - b.x, a.z - b.z);
+        if (dist < BEHAVIOR.duckSpacing + 0.04) {
+          intentA.contactTime = (intentA.contactDuckId === b.id ? (intentA.contactTime ?? 0) : 0) + dt;
+          intentA.contactDuckId = b.id;
+          intentB.contactTime = (intentB.contactDuckId === a.id ? (intentB.contactTime ?? 0) : 0) + dt;
+          intentB.contactDuckId = a.id;
+          if ((intentA.contactTime ?? 0) > 0.35 || (intentB.contactTime ?? 0) > 0.35) {
+            const aHasPriority = a.kind === 'drake' ? true : b.kind === 'drake' ? false : i < j;
+            const yieldingDuck = aHasPriority ? b : a;
+            const yieldIntent = aHasPriority ? intentB : intentA;
+            const leaderDuck = aHasPriority ? a : b;
+            yieldIntent.yieldUntil = this.time + 0.85;
+            yieldIntent.yieldSide = (i % 2 === 0 ? 1 : -1);
+            if (['wander', 'guard'].includes(yieldingDuck.state)) {
+              yieldingDuck.followingId = leaderDuck.id;
+              yieldIntent.followUntil = this.time + 4.5;
+              yieldIntent.followSeenFor = 0;
+              yieldIntent.route = undefined;
+            }
+            intentA.contactTime = 0;
+            intentB.contactTime = 0;
+          }
+        } else {
+          if (intentA.contactDuckId === b.id) { intentA.contactDuckId = undefined; intentA.contactTime = 0; }
+          if (intentB.contactDuckId === a.id) { intentB.contactDuckId = undefined; intentB.contactTime = 0; }
         }
       }
     }
@@ -1340,30 +1387,78 @@ export class Simulation {
     const dist = Math.hypot(dx, dz);
     const intent=this.intents.get(duck.id)!;
     intent.moved=true;
+
+    // Active yielding / backing up from a collision or deadlock (wander/guard only)
+    if (intent.yieldUntil && this.time < intent.yieldUntil && ['wander', 'guard'].includes(duck.state)) {
+      const yieldDir = intent.yieldSide ?? 1;
+      const ux = dist > 1e-6 ? dx / dist : Math.sin(duck.heading);
+      const uz = dist > 1e-6 ? dz / dist : Math.cos(duck.heading);
+      const wantedX = -ux * speed * 0.40 - uz * yieldDir * speed * 0.50;
+      const wantedZ = -uz * speed * 0.40 + ux * yieldDir * speed * 0.50;
+      intent.headingTarget = Math.atan2(wantedX, wantedZ);
+      drive(duck, wantedX, wantedZ, dt);
+      duck.x += duck.vx * dt; duck.z += duck.vz * dt;
+      duck.speed = Math.hypot(duck.vx, duck.vz);
+      return;
+    }
+
     if(dist>.025)intent.headingTarget=Math.atan2(dx,dz);
     const angle=Math.atan2(Math.sin(intent.headingTarget-duck.heading),Math.cos(intent.headingTarget-duck.heading));
     const alignment=duck.state==='swim'?1:Math.max(.2,Math.cos(angle));
     const wantedSpeed=Math.min(speed*alignment,dist*DYNAMICS.arrivalGain);
-    let wantedX=dist>1e-6?dx/dist*wantedSpeed:0,wantedZ=dist>1e-6?dz/dist*wantedSpeed:0;
+    let forwardFactor = 1.0;
+    let accumSidestepX = 0;
+    let accumSidestepZ = 0;
+
     if(dist>.15){
       const ux=dx/dist,uz=dz/dist;
+      const canYield = ['wander', 'guard'].includes(duck.state) && !intent.retreating && !this.foods.some(f => !f.eaten);
       for(const other of this.ducks){
         if(other===duck||Math.abs(other.y-duck.y)>.5)continue;
         const ox=other.x-duck.x,oz=other.z-duck.z;
+        const gap = Math.hypot(ox, oz);
         const ahead=ox*ux+oz*uz,across=-ox*uz+oz*ux;
+
         if(ahead<=0||ahead>.85||Math.abs(across)>.48)continue;
-        // Pass to one side before contact instead of pushing indefinitely into
-        // a resting neighbour. The force controller still limits acceleration.
-        const side=across>=0?-1:1;
-        const sidestep=side*speed*(1-Math.abs(across)/.48);
-        wantedX-=uz*sidestep;wantedZ+=ux*sidestep;
+
+        const side = across >= 0 ? -1 : 1;
+        const sidestep = side * speed * (1 - Math.abs(across) / 0.48);
+        accumSidestepX -= uz * sidestep;
+        accumSidestepZ += ux * sidestep;
+
+        // When in direct collision contact with another duck ahead (wander/guard only):
+        if (canYield && gap < 0.47 && ahead > 0 && Math.abs(across) < 0.40) {
+          const duckHasPriority = other.kind === 'drake' && duck.kind !== 'drake' ? false :
+            (duck.kind === 'drake' && other.kind !== 'drake' ? true : this.ducks.indexOf(duck) < this.ducks.indexOf(other));
+
+          if (!duckHasPriority) {
+            forwardFactor = -0.25;
+            // "Gå bagefter": when blocked by a walking leader, fall in line behind it
+            if (other.speed > 0.10 && !duck.followingId && this.time >= intent.followAgainAt) {
+              duck.followingId = other.id;
+              intent.followUntil = this.time + 3.5;
+              intent.followSeenFor = 0;
+              intent.route = undefined;
+            }
+          }
+        }
       }
-      const magnitude=Math.hypot(wantedX,wantedZ);
-      if(magnitude>speed){wantedX*=speed/magnitude;wantedZ*=speed/magnitude;}
     }
-    drive(duck,wantedX,wantedZ,dt);
-    duck.x+=duck.vx*dt;duck.z+=duck.vz*dt;
-    duck.speed=Math.hypot(duck.vx,duck.vz);
+
+    const ux = dist > 1e-6 ? dx / dist : 0;
+    const uz = dist > 1e-6 ? dz / dist : 0;
+    let wantedX = ux * (wantedSpeed * forwardFactor) + accumSidestepX;
+    let wantedZ = uz * (wantedSpeed * forwardFactor) + accumSidestepZ;
+
+    const magnitude = Math.hypot(wantedX, wantedZ);
+    if (magnitude > speed) {
+      wantedX *= speed / magnitude;
+      wantedZ *= speed / magnitude;
+    }
+
+    drive(duck, wantedX, wantedZ, dt);
+    duck.x += duck.vx * dt; duck.z += duck.vz * dt;
+    duck.speed = Math.hypot(duck.vx, duck.vz);
   }
 
   private landWaypoint(from: Vec2, target: Vec2, intent: Intent): Vec2 {

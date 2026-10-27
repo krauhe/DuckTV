@@ -43,7 +43,7 @@ export function contourFeathers(skin:THREE.Mesh,kind:DuckKind,sides=64,head=fals
       positions.push(p.x,p.y,p.z);
       const centre=kind==='brown'&&!head?(1-a*a)**3*Math.sin(t*Math.PI)**2*.48:0;
       const rimHighlight = (!head && (along >= 5 || Math.abs(across - 2) >= 1.5)) ? 0.16 : 0;
-      c.multiplyScalar((head?.95+seed*.08:.92+seed*.10)-centre + rimHighlight);colors.push(c.x,c.y,c.z);
+      c.multiplyScalar((head ? 1.06 + seed * .08 : 1.05 + seed * .10) - centre + rimHighlight);colors.push(c.x,c.y,c.z);
       uv.push(head?pu:(a+1)*.025,head?pv:t*.036);
       if(along<7&&across<4){const k=start+along*5+across;indices.push(k,k+5,k+1,k+1,k+5,k+6);}
     }
@@ -84,7 +84,7 @@ export function contourFeathers(skin:THREE.Mesh,kind:DuckKind,sides=64,head=fals
         p.applyMatrix4(skin.matrix);positions.push(p.x,p.y,p.z);
         const centre=kind==='brown'?(1-a*a)**3*Math.sin(t*Math.PI)**2*.48:0;
         const rimHighlight = (along >= 5 || Math.abs(across - 2) >= 1.5) ? 0.16 : 0;
-        c.multiplyScalar(.92+seed*.10-centre + rimHighlight);colors.push(c.x,c.y,c.z);
+        c.multiplyScalar(1.05 + seed * .10 - centre + rimHighlight);colors.push(c.x,c.y,c.z);
         uv.push((a+1)*.025,t*.036);
         if(along<7&&across<4){const k=start+along*5+across;indices.push(k,k+5,k+1,k+1,k+5,k+6);}
       }
@@ -105,5 +105,6 @@ export function contourFeathers(skin:THREE.Mesh,kind:DuckKind,sides=64,head=fals
   }), true);
   mat.bumpScale = .0045;
   const mesh=new THREE.Mesh(geometry,mat);mesh.name=head?'duck-head-down':'duck-contour-feathers';mesh.receiveShadow=true;mesh.castShadow=false;
+  mesh.raycast=()=>{};
   return mesh;
 }

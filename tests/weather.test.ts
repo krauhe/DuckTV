@@ -9,6 +9,9 @@ test('drizzle code survives a rounded zero amount and small measured showers rem
  assert.ok(interpretWeather({...current,weather_code:51}).weather.rain>0);
  assert.equal(interpretWeather({...current,showers:.01}).weather.rain,.01);
  assert.equal(interpretWeather({...current,weather_code:71}).weather.rain,0);
+ assert.ok((interpretWeather({...current,weather_code:71}).weather.snow??0)>0.3);
+ assert.equal(interpretWeather({...current,weather_code:73}).description,'snevejr');
+ assert.ok((interpretWeather({...current,temperature_2m:-2.5,weather_code:1}).weather.frost??0)>0.5);
 });
 test('malformed weather cannot replace valid cached conditions',()=>{
  assert.throws(()=>interpretWeather({...current,cloud_cover:NaN}));

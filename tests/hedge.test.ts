@@ -3,12 +3,24 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { getHedgeSeason, createHedgeDetails } from '../src/hedge.ts';
 
-test('getHedgeSeason returns copper autumn for late October and winter, spring in May, summer in July', () => {
+test('getHedgeSeason returns copper autumn for late October, winter in January, spring in May, summer in July', () => {
   assert.equal(getHedgeSeason(new Date('2026-10-25T12:00:00Z')), 'copper_autumn');
-  assert.equal(getHedgeSeason(new Date('2026-01-15T12:00:00Z')), 'copper_autumn');
+  assert.equal(getHedgeSeason(new Date('2026-01-15T12:00:00Z')), 'winter');
   assert.equal(getHedgeSeason(new Date('2026-05-10T12:00:00Z')), 'spring');
   assert.equal(getHedgeSeason(new Date('2026-07-20T12:00:00Z')), 'summer');
   assert.equal(getHedgeSeason(new Date('2026-09-20T12:00:00Z')), 'early_autumn');
+});
+
+test('createHedgeDetails includes woody inner branches and thins upper leaves in winter', () => {
+  const mat = new THREE.MeshStandardMaterial({ color: '#ffffff' });
+  const hedge = createHedgeDetails([[0, 0, 0, 1]], mat, new Date('2026-01-15T12:00:00Z'));
+  const branches = hedge.getObjectByName('hedge-branches') as THREE.InstancedMesh;
+  assert.ok(branches, 'woody branch skeleton exists inside hedge');
+  hedge.setWinterWeather(1, 1);
+  const shoots = hedge.getObjectByName('hedge-leaf-clusters') as THREE.InstancedMesh;
+  const col = new THREE.Color();
+  shoots.getColorAt(0, col);
+  assert.ok(col.b > 0.25, 'top shoots receive snowy/frosty tint in winter weather');
 });
 
 test('createHedgeDetails adjusts core material tone across seasons', () => {

@@ -7,9 +7,17 @@ import { createNightSky } from './night-sky';
 import { createRainImpacts } from './rain-impacts';
 import { lawnTexture, lawnMarkMask } from './lawn-texture';
 import { createHedgeDetails } from './hedge';
+import { createTreesAndHolidays } from './trees';
 import { createContactShadows, type DuckShadowTarget } from './contact-shadows';
+import { createFootprints, type FootprintDuck } from './footprints';
+import { createGistrupCastle, type GistrupCastle } from './gistrup-castle';
+import { createGistrupHospital, type GistrupHospital } from './gistrup-hospital';
+import { createHelicopter, type Helicopter } from './helicopter';
+import { createGistrupForest, type GistrupForest } from './gistrup-forest';
+import { createGistrupChurch, type GistrupChurch } from './gistrup-church';
+import { createGistrupHouses, type GistrupHouses } from './gistrup-houses';
 
-type Weather = { cloud: number; wind: number; rain: number; isDay: boolean };
+type Weather = { cloud: number; wind: number; rain: number; isDay: boolean; frost?: number; snow?: number };
 type Ripple = { x: number; z: number; start: number; strength: number; line: THREE.LineLoop };
 
 const TAU = Math.PI * 2;
@@ -72,8 +80,12 @@ export function createEnvironment(scene: THREE.Scene): {
   setWeather(weather: Weather): void;
   setDaylight(light: number, phase: number): void;
   setSkyDate(date:Date):void;
+  setLowQuality(low: boolean): void;
   setShelterDoor(closed:number):void;
   updateContactShadows(ducks: readonly DuckShadowTarget[], groundHeight: (x: number, z: number) => number): void;
+  updateFootprints(ducks: readonly FootprintDuck[], dt: number): void;
+  readonly helicopter: Helicopter;
+  triggerHelicopter(): void;
 } {
   const rand = random(75129);
   const shelter=createShelter(scene);
@@ -81,14 +93,14 @@ export function createEnvironment(scene: THREE.Scene): {
   const skyOvercast = new THREE.Color(0x566572);
   const skyNight = new THREE.Color(0x182c49);
   scene.background = skyDay.clone();
-  const fog = new THREE.Fog(skyDay.clone(), 19, 56);
+  const fog = new THREE.Fog(skyDay.clone(), 28, 92);
   scene.fog = fog;
   const sky=createSky(scene);
 
   const nightSky=createNightSky(scene);
   nightSky.setDate(new Date());
 
-  const hemi = new THREE.HemisphereLight(0xcce8ff, 0x628a42, 1.45);
+  const hemi = new THREE.HemisphereLight(0xdcf0ff, 0x7aa558, 1.85);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xfff5e0, 2.75);
   sun.position.set(-5, 10, 6);
@@ -105,10 +117,34 @@ export function createEnvironment(scene: THREE.Scene): {
   scene.add(sun);
   scene.add(sun.target);
 
+  const winterUniforms = { uFrost: { value: 0 }, uSnow: { value: 0 } };
+
   // Its upper face is exactly y=0, so ground raycasts stay consistent with duck movement.
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: lawnTexture(), roughness: 1.0, metalness: 0.0 });
+  groundMat.onBeforeCompile = (shader) => {
+    shader.uniforms.uFrost = winterUniforms.uFrost;
+    shader.uniforms.uSnow = winterUniforms.uSnow;
+    shader.fragmentShader = 'uniform float uFrost;\nuniform float uSnow;\n' + shader.fragmentShader;
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <map_fragment>',
+      `#include <map_fragment>
+      float lawnLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+      vec3 frostedLawn = mix(diffuseColor.rgb, vec3(0.76, 0.85, 0.90) * (0.78 + lawnLum * 0.42), uFrost * 0.72);
+      vec3 snowyLawn = vec3(0.89, 0.93, 0.98) * (0.86 + lawnLum * 0.26);
+      diffuseColor.rgb = mix(frostedLawn, snowyLawn, uSnow * 0.95);
+      `
+    );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <lights_fragment_end>',
+      `#include <lights_fragment_end>
+      reflectedLight.directSpecular = vec3(0.0);
+      reflectedLight.indirectSpecular = vec3(0.0);
+      `
+    );
+  };
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(160, 160),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, map:lawnTexture(), roughness: 0.97 }),
+    new THREE.PlaneGeometry(320, 320),
+    groundMat,
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -149,16 +185,41 @@ export function createEnvironment(scene: THREE.Scene): {
   grassMat.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = grassWindUniforms.uTime;
     shader.uniforms.uWind = grassWindUniforms.uWind;
+    shader.uniforms.uFrost = winterUniforms.uFrost;
+    shader.uniforms.uSnow = winterUniforms.uSnow;
     shader.vertexShader = `
       uniform float uTime;
       uniform float uWind;
+      varying float vBladeTip;
     ` + shader.vertexShader;
     shader.vertexShader = shader.vertexShader.replace(
       '#include <begin_vertex>',
       `#include <begin_vertex>
-      float bend = transformed.y * 11.76;
+      float bend = clamp(transformed.y * 11.76, 0.0, 1.0);
+      vBladeTip = bend;
       transformed.x += sin(uTime * 2.2 + position.x * 2.0) * bend * uWind * 0.035;
       transformed.z += cos(uTime * 1.8 + position.z * 2.5) * bend * uWind * 0.025;
+      `
+    );
+    shader.fragmentShader = `
+      uniform float uFrost;
+      uniform float uSnow;
+      varying float vBladeTip;
+    ` + shader.fragmentShader;
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <color_fragment>',
+      `#include <color_fragment>
+      vec3 frostTip = vec3(0.85, 0.92, 0.97);
+      diffuseColor.rgb = mix(diffuseColor.rgb, frostTip, smoothstep(0.12, 0.90, vBladeTip) * uFrost * 0.88);
+      vec3 snowBlade = mix(vec3(0.78, 0.85, 0.93), vec3(0.94, 0.97, 1.0), vBladeTip);
+      diffuseColor.rgb = mix(diffuseColor.rgb, snowBlade, uSnow * 0.92);
+      `
+    );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <lights_fragment_end>',
+      `#include <lights_fragment_end>
+      reflectedLight.directSpecular = vec3(0.0);
+      reflectedLight.indirectSpecular = vec3(0.0);
       `
     );
   };
@@ -357,6 +418,25 @@ export function createEnvironment(scene: THREE.Scene): {
   water.renderOrder = 1;
   basin.add(water);
 
+  // Tynd is-bræmme langs bassinets inderkant ved hård frost og snevejr
+  const iceRimGeo = radialSurface([
+    [1.16, POND.waterY + 0.002, 0.55],
+    [1.41, POND.waterY + 0.005, 0.65],
+  ]);
+  const iceRimMat = new THREE.MeshStandardMaterial({
+    color: 0xe6f4ff,
+    roughness: 0.25,
+    metalness: 0.05,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  });
+  const pondIceRim = new THREE.Mesh(iceRimGeo, iceRimMat);
+  pondIceRim.name = 'pond-ice-rim';
+  pondIceRim.visible = false;
+  pondIceRim.renderOrder = 2;
+  basin.add(pondIceRim);
+
   const ripplePool = Array.from({ length: 24 }, makeRippleLine);
   ripplePool.forEach(line => basin.add(line));
   const activeRipples: Ripple[] = [];
@@ -383,19 +463,20 @@ export function createEnvironment(scene: THREE.Scene): {
   const hedgeGeo = new THREE.IcosahedronGeometry(1, 2);
   const hedgeMat = new THREE.MeshStandardMaterial({ color: 0x365f32, roughness: 1 });
   const hedgePositions: Array<[number, number, number, number]> = [];
+  // Lidt lavere hæk (~1.30m) så man lettere kan se Gistrup-seværdighederne og nabohusene
   for (let x = GARDEN.minX-1.3; x <= GARDEN.maxX+1.3; x += .7) {
-    hedgePositions.push([x,GARDEN.minZ-1.3,.95,.88+rand()*.12]);
-    hedgePositions.push([x,GARDEN.maxZ+1.3,.95,.88+rand()*.12]);
+    hedgePositions.push([x, GARDEN.minZ-1.3, 0.58, 0.68 + rand() * 0.08]);
+    hedgePositions.push([x, GARDEN.maxZ+1.3, 0.58, 0.68 + rand() * 0.08]);
   }
   for (let z = GARDEN.minZ-1.3; z <= GARDEN.maxZ+1.3; z += .7) {
-    hedgePositions.push([GARDEN.minX-1.3,z,.95,.88+rand()*.12]);
-    hedgePositions.push([GARDEN.maxX+1.3,z,.95,.88+rand()*.12]);
+    hedgePositions.push([GARDEN.minX-1.3, z, 0.58, 0.68 + rand() * 0.08]);
+    hedgePositions.push([GARDEN.maxX+1.3, z, 0.58, 0.68 + rand() * 0.08]);
   }
   const hedges = new THREE.InstancedMesh(hedgeGeo, hedgeMat, hedgePositions.length);
   hedgePositions.forEach(([x, z, y, scale], i) => {
     grassDummy.position.set(x, y, z);
     grassDummy.rotation.set(rand() * 0.25, rand() * TAU, rand() * 0.25);
-    grassDummy.scale.set(scale * 1.2, scale * 1.5, scale * 1.2);
+    grassDummy.scale.set(scale * 1.2, scale * 1.05, scale * 1.2);
     grassDummy.updateMatrix();
     hedges.setMatrixAt(i, grassDummy.matrix);
   });
@@ -405,6 +486,42 @@ export function createEnvironment(scene: THREE.Scene): {
   hedges.name='hedge-core';
   const hedgeDetails = createHedgeDetails(hedgePositions, hedgeMat);
   scene.add(hedgeDetails);
+  const treesAndHolidays = createTreesAndHolidays(scene);
+  const footprints = createFootprints(scene);
+
+  // Autentiske Gistrup-landemærker hele vejen rundt om haven
+  const castle = createGistrupCastle();
+  scene.add(castle.group);
+
+  const hospital = createGistrupHospital();
+  scene.add(hospital.group);
+
+  const helicopter = createHelicopter(hospital.helipadPosition);
+  scene.add(helicopter.group);
+
+  const forest = createGistrupForest();
+  scene.add(forest.group);
+
+  const church = createGistrupChurch();
+  scene.add(church.group);
+
+  const houses = createGistrupHouses();
+  scene.add(houses.group);
+
+  // Snehætte på andehusets tag
+  const roofSnowMat = new THREE.MeshStandardMaterial({
+    color: 0xf4f8fc,
+    roughness: 0.78,
+    metalness: 0.02,
+    transparent: true,
+    opacity: 0,
+  });
+  const roofSnowMesh = new THREE.Mesh(new THREE.BoxGeometry(2.58, 0.044, 1.92), roofSnowMat);
+  roofSnowMesh.name = 'shelter-roof-snow';
+  roofSnowMesh.position.set(-3.7, 1.535, -2.775);
+  roofSnowMesh.visible = false;
+  roofSnowMesh.receiveShadow = true;
+  scene.add(roofSnowMesh);
 
   // Small daisies and buttercups gather mainly near the garden edges.
   const stemGeo = new THREE.CylinderGeometry(0.008, 0.012, 0.19, 4);
@@ -570,17 +687,19 @@ export function createEnvironment(scene: THREE.Scene): {
   const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.77, depthWrite: false });
   const cloudGeo = new THREE.SphereGeometry(1, 12, 8);
   const cloudParts: Array<{ x: number; y: number; z: number; sx: number; sy: number; sz: number; cluster: number; speed: number }> = [];
-  // A sky-wide field instead of a single strip behind the north hedge.
+  // Skyhøjt felt (y = 32 til 44m), så skyerne svæver højt på himlen og aldrig driver foran kirketårnet eller andre bygninger
+  const cloudBaseY = 32;
+  const cloudSpanY = 12;
   for (let c = 0; c < 36; c++) {
-    const origin = -40 + (c % 6) * 16 + (rand()-.5)*6;
-    const y = 9 + rand() * 4;
-    const z = -40 + Math.floor(c / 6) * 16 + (rand()-.5)*6;
-    const speed = 0.2 + rand() * 0.18;
+    const origin = -70 + (c % 6) * 28 + (rand() - .5) * 8;
+    const y = cloudBaseY + rand() * cloudSpanY;
+    const z = -70 + Math.floor(c / 6) * 28 + (rand() - .5) * 8;
+    const speed = 0.22 + rand() * 0.16;
     const puffs = 3 + Math.floor(rand() * 3);
     for (let p = 0; p < puffs; p++) {
       cloudParts.push({
-        x: origin + (p - (puffs - 1) / 2) * 0.9, y: y + rand() * 0.25, z: z + rand() * 0.3,
-        sx: 1.1 + rand() * 0.7, sy: 0.55 + rand() * 0.25, sz: 0.65,
+        x: origin + (p - (puffs - 1) / 2) * 2.5, y: y + rand() * 0.5, z: z + rand() * 0.6,
+        sx: 2.8 + rand() * 1.6, sy: 1.4 + rand() * 0.7, sz: 2.2 + rand() * 1.1,
         cluster: origin, speed,
       });
     }
@@ -607,16 +726,51 @@ export function createEnvironment(scene: THREE.Scene): {
   scene.add(rain);
   const rainImpacts=createRainImpacts(scene);
   const contactShadows=createContactShadows(scene);
+
+  // Dalende snefnug (bløde svævende snefnug i 3D-rummet)
+  const snowCount = 720;
+  const snowPositions = new Float32Array(snowCount * 3);
+  const snowPhases = new Float32Array(snowCount);
+  const snowSpeeds = new Float32Array(snowCount);
+  for (let i = 0; i < snowCount; i++) {
+    snowPositions[i * 3] = (rand() - 0.5) * 20;
+    snowPositions[i * 3 + 1] = rand() * 8.2;
+    snowPositions[i * 3 + 2] = (rand() - 0.5) * 15;
+    snowPhases[i] = rand() * TAU;
+    snowSpeeds[i] = 0.65 + rand() * 0.55;
+  }
+  const snowGeometry = new THREE.BufferGeometry();
+  snowGeometry.setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
+  const snowMaterial = new THREE.PointsMaterial({
+    color: 0xf7fbff,
+    size: 0.052,
+    map: createDropletTexture(),
+    transparent: true,
+    opacity: 0.88,
+    depthWrite: false,
+  });
+  const snow = new THREE.Points(snowGeometry, snowMaterial);
+  snow.name = 'weather-snow';
+  snow.visible = false;
+  snow.frustumCulled = false;
+  scene.add(snow);
+
   const waterContains=(x:number,z:number)=>{
     const dx=x-POND.x,dz=z-POND.z;
     return Math.hypot(dx,dz)<shellRadius(Math.atan2(dz,dx),1.40);
   };
 
-  let weather: Weather = { cloud: 10, wind: 1.5, rain: 0, isDay: true };
+  let weather: Weather = { cloud: 10, wind: 1.5, rain: 0, frost: 0, snow: 0, isDay: true };
   let daylight = 1;
   let solarPhase = 0.5;
   let elapsed = 0;
   let weatherInitialized = false;
+  let lowQuality = false;
+  let waterStep = 0;
+  let currentFrost = 0;
+  let currentSnow = 0;
+  let targetFrost = 0;
+  let targetSnow = 0;
   const targetSky = skyDay.clone();
   const targetSunColor = new THREE.Color(0xfff2d1);
   const targetWaterColor = new THREE.Color(0x68cdef);
@@ -630,18 +784,23 @@ export function createEnvironment(scene: THREE.Scene): {
       cloud: THREE.MathUtils.clamp(next.cloud, 0, 100),
       wind: Math.max(0, next.wind),
       rain: Math.max(0, next.rain),
+      frost: THREE.MathUtils.clamp(next.frost ?? 0, 0, 1),
+      snow: THREE.MathUtils.clamp(next.snow ?? 0, 0, 1),
       isDay: next.isDay,
     };
+    targetFrost = weather.frost ?? 0;
+    targetSnow = weather.snow ?? 0;
     const cloudiness = weather.cloud / 100;
     const rainFactor = Math.min(1, weather.rain / 2);
-    sky.set(daylight, cloudiness, sun.position, rainFactor);
-    targetSky.copy(skyDay).lerp(skyOvercast, Math.min(1, cloudiness * 0.75 + rainFactor * 0.35)).lerp(skyNight, 1 - daylight);
+    const snowFactor = targetSnow;
+    sky.set(daylight, cloudiness, sun.position, Math.max(rainFactor, snowFactor * 0.65));
+    targetSky.copy(skyDay).lerp(skyOvercast, Math.min(1, cloudiness * 0.75 + rainFactor * 0.35 + snowFactor * 0.45)).lerp(skyNight, 1 - daylight);
     // Overcast diffuse skylight wraps around garden & ducks evenly, keeping them crisp and colorful
-    const baseHemi = 1.62 - cloudiness * 0.12 + rainFactor * 0.12;
-    targetHemi = THREE.MathUtils.lerp(.30, baseHemi, daylight);
+    const baseHemi = 2.10 - cloudiness * 0.06 + rainFactor * 0.15 + snowFactor * 0.25;
+    targetHemi = THREE.MathUtils.lerp(.50, baseHemi, daylight);
     // Direct sun is softened and attenuated during clouds & rain
-    targetSun = THREE.MathUtils.lerp(.08, Math.max(0.18, (2.75 - cloudiness * 2.25) * (1 - rainFactor * 0.75)), daylight);
-    targetSunColor.set(daylight > .8 ? 0xfff5e0 : daylight > .1 ? 0xffc48e : 0xa8bde2);
+    targetSun = THREE.MathUtils.lerp(.16, Math.max(0.55, (2.85 - cloudiness * 1.80) * (1 - Math.max(rainFactor, snowFactor * 0.65) * 0.65)), daylight);
+    targetSunColor.set(daylight > .8 ? (targetFrost > 0.3 || targetSnow > 0.3 ? 0xf2f7ff : 0xfff5e0) : daylight > .1 ? 0xffc48e : 0xa8bde2);
     targetCloudOpacity = THREE.MathUtils.lerp(0.22, 0.72 + cloudiness * 0.22, daylight);
     targetCloudColor.set(0xffffff).lerp(new THREE.Color(0x4a5866), Math.min(0.92, cloudiness * 0.45 + rainFactor * 0.5));
     targetCloudColor.lerp(new THREE.Color(0x121822), 1 - daylight);
@@ -649,14 +808,29 @@ export function createEnvironment(scene: THREE.Scene): {
     const lowerCloudColor = new THREE.Color(0xc0d0e0).lerp(new THREE.Color(0x35404d), Math.min(1, cloudiness * 0.7 + rainFactor * 0.5)).lerp(new THREE.Color(0x0a0f16), 1 - daylight);
     for (let i = 0; i < cloudParts.length; i++) {
       const part = cloudParts[i];
-      const relY = THREE.MathUtils.clamp((part.y - 8.5) / 4.5, 0, 1);
+      const relY = THREE.MathUtils.clamp((part.y - cloudBaseY) / cloudSpanY, 0, 1);
       const col = lowerCloudColor.clone().lerp(upperCloudColor, relY);
       clouds.setColorAt(i, col);
     }
     if (clouds.instanceColor) clouds.instanceColor.needsUpdate = true;
-    targetWaterColor.set(weather.isDay ? 0x2eaedb : 0x245b7a);
-    rain.visible = weather.rain > 0;
-    rainGeometry.setDrawRange(0, Math.min(rainCount, Math.round(160 + weather.rain * 320)) * 2);
+
+    // Bakker i horisonten får rim eller snedække
+    const hillSnowTint = new THREE.Color(0xeaf2fa);
+    const hillFrostTint = new THREE.Color(0xc2d8cf);
+    for (let i = 0; i < 17; i++) {
+      const col = new THREE.Color(hillColors[i % hillColors.length]);
+      if (targetFrost > 0.01) col.lerp(hillFrostTint, targetFrost * 0.65);
+      if (targetSnow > 0.01) col.lerp(hillSnowTint, targetSnow * 0.92);
+      hills.setColorAt(i, col);
+    }
+    if (hills.instanceColor) hills.instanceColor.needsUpdate = true;
+
+    targetWaterColor.set(weather.isDay ? (targetSnow > 0.3 || targetFrost > 0.4 ? 0x268cb8 : 0x2eaedb) : 0x245b7a);
+    const qScale = lowQuality ? 0.5 : 1.0;
+    rain.visible = weather.rain > 0 && targetSnow < 0.25;
+    rainGeometry.setDrawRange(0, Math.min(rainCount, Math.round((160 + weather.rain * 320) * qScale)) * 2);
+    snow.visible = targetSnow > 0.05;
+    snowGeometry.setDrawRange(0, Math.min(snowCount, Math.round((180 + targetSnow * 540) * qScale)));
     if (!weatherInitialized) {
       (scene.background as THREE.Color).copy(targetSky);
       fog.color.copy(targetSky);
@@ -666,6 +840,17 @@ export function createEnvironment(scene: THREE.Scene): {
       cloudMat.opacity = targetCloudOpacity;
       cloudMat.color.copy(targetCloudColor);
       waterMaterial.color.copy(targetWaterColor);
+      currentFrost = targetFrost;
+      currentSnow = targetSnow;
+      winterUniforms.uFrost.value = currentFrost;
+      winterUniforms.uSnow.value = currentSnow;
+      hedgeDetails.setWinterWeather(currentFrost, currentSnow);
+      treesAndHolidays.setWeather(currentFrost, currentSnow, daylight);
+      castle.setWinterWeather(currentSnow, currentFrost);
+      hospital.setWinterWeather(currentSnow, currentFrost);
+      forest.setWinterWeather(currentSnow, currentFrost);
+      church.setWinterWeather(currentSnow, currentFrost);
+      houses.setWinterWeather(currentSnow, currentFrost);
       weatherInitialized = true;
       sky.update(1, 0);
     }
@@ -817,16 +1002,52 @@ export function createEnvironment(scene: THREE.Scene): {
     rainImpacts.update(Math.max(0,dt),daylight,waterContains);
     waterMaterial.color.lerp(targetWaterColor, weatherBlend);
     nightSky.update(weather.cloud,weatherBlend);
+    currentFrost = THREE.MathUtils.lerp(currentFrost, targetFrost, weatherBlend);
+    currentSnow = THREE.MathUtils.lerp(currentSnow, targetSnow, weatherBlend);
+    winterUniforms.uFrost.value = currentFrost;
+    winterUniforms.uSnow.value = currentSnow;
+    hedgeDetails.setWinterWeather(currentFrost, currentSnow);
+    treesAndHolidays.setWeather(currentFrost, currentSnow, daylight);
+    treesAndHolidays.update(time);
+
     const wind = Math.min(weather.wind, 20);
+
+    castle.setWinterWeather(currentSnow, currentFrost);
+    hospital.setWinterWeather(currentSnow, currentFrost);
+    forest.setWinterWeather(currentSnow, currentFrost);
+    church.setWinterWeather(currentSnow, currentFrost);
+    houses.setWinterWeather(currentSnow, currentFrost);
+
+    castle.update(dt);
+    hospital.update(dt);
+    helicopter.update(dt);
+    forest.update(time, wind, dt);
+    church.update(dt);
+    houses.update(time, wind, dt);
+
+    const roofSnowAmount = THREE.MathUtils.clamp(currentSnow * 0.96 + currentFrost * 0.18, 0, 1);
+    roofSnowMesh.visible = roofSnowAmount > 0.04;
+    roofSnowMat.opacity = roofSnowAmount;
+
+    const iceRimAmount = THREE.MathUtils.clamp(currentSnow * 0.78 + currentFrost * 0.55, 0, 0.85);
+    pondIceRim.visible = iceRimAmount > 0.05;
+    iceRimMat.opacity = iceRimAmount;
+
     hedgeDetails.update(time, dt, wind);
     const sway = Math.min(wind / 15, 0.55);
     grassWindUniforms.uTime.value = time;
     grassWindUniforms.uWind.value = sway;
     const morningDew = daylight > 0.05 ? THREE.MathUtils.clamp((0.35 - solarPhase) / 0.35, 0, 1) * Math.min(1, daylight * 1.8) : 0;
-    dewMesh.visible = morningDew > 0.04;
-    dewMat.opacity = morningDew * 0.75;
-    (ground.material as THREE.MeshStandardMaterial).roughness = THREE.MathUtils.lerp(0.95, 0.70, morningDew);
-    (grass.material as THREE.MeshStandardMaterial).roughness = THREE.MathUtils.lerp(0.72, 0.42, morningDew);
+    const sparkle = Math.max(morningDew, currentFrost * 0.92, currentSnow * 0.65);
+    dewMesh.visible = sparkle > 0.04;
+    dewMat.opacity = sparkle * 0.82;
+
+    // Sommerblomster skjules under sne og hård frost, og nedfaldne blade dækkes ved dyb sne
+    const showFlowers = currentSnow < 0.25 && currentFrost < 0.45;
+    stems.visible = showFlowers;
+    petals.visible = showFlowers;
+    centres.visible = showFlowers;
+    fallenLeaves.visible = currentSnow < 0.70;
 
     // Blomster svajer i vinden - stængel og blomsterhoved er 100% fasesynkrone,
     // og kronbladene blafrer og folder sig organisk sammen fra bunden af hovedet i vindstød.
@@ -874,7 +1095,7 @@ export function createEnvironment(scene: THREE.Scene): {
 
     // Flyvende visne blade kræver mærkbar blæst/vindstød for at løfte sig fra jorden (fra ca. 5.5-6 m/s).
     // Ved let brise (som f.eks. 4 m/s) fyger blade ikke rundt; haven er rolig.
-    const activeLeafCount = Math.floor(THREE.MathUtils.clamp((weather.wind - 5.5) * 4.5, 0, flyingLeafCount));
+    const activeLeafCount = currentSnow > 0.35 ? 0 : Math.floor(THREE.MathUtils.clamp((weather.wind - 5.5) * 4.5, 0, flyingLeafCount));
     flyingLeaves.visible = activeLeafCount > 0;
     if (flyingLeaves.visible) {
       const leafSpeed = 0.5 + (weather.wind - 5.0) * 0.45;
@@ -908,36 +1129,40 @@ export function createEnvironment(scene: THREE.Scene): {
       flyingLeaves.instanceMatrix.needsUpdate = true;
     }
 
+    const cloudWrapSpan = 160;
+    const cloudHalfSpan = cloudWrapSpan / 2; // 80
     cloudParts.forEach((part, i) => {
-      const centre = ((part.cluster + 48 + time * part.speed) % 96 + 96) % 96 - 48;
+      const centre = ((part.cluster + cloudHalfSpan + time * part.speed) % cloudWrapSpan + cloudWrapSpan) % cloudWrapSpan - cloudHalfSpan;
       const drift = centre - part.cluster;
       grassDummy.position.set(part.x + drift, part.y, part.z);
       grassDummy.rotation.set(0, 0, 0);
       // Fade at the distant wrap boundary so a cluster never visibly jumps.
-      const coverage=(1+weather.cloud/100*1.9)*(1-THREE.MathUtils.smoothstep(Math.abs(centre),40,48));
-      grassDummy.scale.set(part.sx*coverage, part.sy, part.sz*coverage);
+      const coverage = (1 + weather.cloud / 100 * 1.9) * (1 - THREE.MathUtils.smoothstep(Math.abs(centre), 68, 80));
+      grassDummy.scale.set(part.sx * coverage, part.sy, part.sz * coverage);
       grassDummy.updateMatrix();
       clouds.setMatrixAt(i, grassDummy.matrix);
     });
     clouds.instanceMatrix.needsUpdate = true;
 
-    const positions = waterGeometry.getAttribute('position') as THREE.BufferAttribute;
-    for (let i = 0; i < positions.count; i++) {
-      const x = positions.getX(i);
-      const z = positions.getZ(i);
-      let y = POND.waterY + 0.006 * Math.sin(x * 8 + time * 2.1) * Math.cos(z * 7 - time * 1.7);
-      for (const active of activeRipples) {
-        const age = time - active.start;
-        if (age < 0 || age > 2.3) continue;
-        const distance = Math.hypot(x - active.x, z - active.z);
-        const wavefront = age * 0.65;
-        const envelope = Math.exp(-((distance - wavefront) ** 2) / 0.035) * (1 - age / 2.3);
-        y += 0.024 * active.strength * envelope * Math.sin((distance - wavefront) * 26);
+    if (!lowQuality || (waterStep++ & 1) === 0 || activeRipples.length > 0) {
+      const positions = waterGeometry.getAttribute('position') as THREE.BufferAttribute;
+      for (let i = 0; i < positions.count; i++) {
+        const x = positions.getX(i);
+        const z = positions.getZ(i);
+        let y = POND.waterY + 0.006 * Math.sin(x * 8 + time * 2.1) * Math.cos(z * 7 - time * 1.7);
+        for (const active of activeRipples) {
+          const age = time - active.start;
+          if (age < 0 || age > 2.3) continue;
+          const distance = Math.hypot(x - active.x, z - active.z);
+          const wavefront = age * 0.65;
+          const envelope = Math.exp(-((distance - wavefront) ** 2) / 0.035) * (1 - age / 2.3);
+          y += 0.024 * active.strength * envelope * Math.sin((distance - wavefront) * 26);
+        }
+        positions.setY(i, y);
       }
-      positions.setY(i, y);
+      positions.needsUpdate = true;
+      waterGeometry.computeVertexNormals();
     }
-    positions.needsUpdate = true;
-    waterGeometry.computeVertexNormals();
 
     for (let i = activeRipples.length - 1; i >= 0; i--) {
       const active = activeRipples[i];
@@ -1029,6 +1254,30 @@ export function createEnvironment(scene: THREE.Scene): {
       rainGeometry.attributes.position.needsUpdate = true;
       rainMaterial.opacity = Math.min(0.6, 0.30 + weather.rain * 0.08);
     }
+
+    if (snow.visible) {
+      const activeSnowCount = Math.min(snowCount, Math.round(180 + Math.max(currentSnow, targetSnow) * 540));
+      for (let i = 0; i < activeSnowCount; i++) {
+        const idx = i * 3;
+        const phase = snowPhases[i];
+        const fallSpeed = snowSpeeds[i] * (0.62 + Math.min(wind, 8) * 0.04);
+        snowPositions[idx + 1] -= dt * fallSpeed;
+        snowPositions[idx] += dt * (wind * 0.06 + Math.sin(time * 1.35 + phase) * 0.28);
+        snowPositions[idx + 2] += dt * Math.cos(time * 1.1 + phase * 1.3) * 0.22;
+
+        const x = snowPositions[idx];
+        const z = snowPositions[idx + 2];
+        const roof = x > SHELTER.minX - 0.09 && x < SHELTER.maxX + 0.09 && z > SHELTER.back - 0.085 && z < SHELTER.front + 0.085;
+        const groundY = roof ? 1.54 : waterContains(x, z) ? POND.waterY : gardenGroundHeight(x, z);
+        if (snowPositions[idx + 1] < groundY + 0.02 || Math.abs(x) > 11 || Math.abs(z) > 8.5) {
+          snowPositions[idx] = (rand() - 0.5) * 20;
+          snowPositions[idx + 1] = 7.2 + rand() * 1.4;
+          snowPositions[idx + 2] = (rand() - 0.5) * 15;
+        }
+      }
+      snowGeometry.attributes.position.needsUpdate = true;
+      snowMaterial.opacity = THREE.MathUtils.clamp(0.45 + Math.max(currentSnow, targetSnow) * 0.48, 0.35, 0.92);
+    }
   }
 
   setWeather(weather);
@@ -1038,7 +1287,46 @@ export function createEnvironment(scene: THREE.Scene): {
     solarPhase=phase;
     sun.position.set(-Math.cos(phase*Math.PI)*8,Math.max(1,Math.sin(phase*Math.PI)*10),4);
     setWeather({...weather,isDay:daylight>.3});
+    const solarAltDeg = daylight > 0.05 ? THREE.MathUtils.lerp(-4, 52, Math.sin(solarPhase * Math.PI) * daylight) : -18;
+    castle.setDaylight(solarAltDeg);
+    hospital.setDaylight(solarAltDeg);
+    helicopter.setDaylight(solarAltDeg);
+    forest.setDaylight(solarAltDeg);
+    church.setDaylight(solarAltDeg);
+    houses.setDaylight(solarAltDeg);
   }
-  function setSkyDate(date: Date) { nightSky.setDate(date); hedgeDetails.setDate(date); }
-  return { ground, update, ripple, splash, setWeather, setDaylight, setSkyDate, setShelterDoor:shelter.setDoor, updateContactShadows:contactShadows.update };
+  function setSkyDate(date: Date) {
+    nightSky.setDate(date);
+    hedgeDetails.setDate(date);
+    treesAndHolidays.setDate(date);
+    castle.setDate(date);
+    hospital.setDate(date);
+    forest.setDate(date);
+    church.setDate(date);
+    houses.setDate(date);
+  }
+  function setLowQuality(low: boolean) {
+    if (lowQuality === low) return;
+    lowQuality = low;
+    grass.count = low ? Math.floor(grassCount * 0.55) : grassCount;
+    hedges.castShadow = !low;
+    hedges.receiveShadow = !low;
+    hedgeDetails.setLowQuality(low);
+    setWeather(weather);
+  }
+  return {
+    ground,
+    update,
+    ripple,
+    splash,
+    setWeather,
+    setDaylight,
+    setSkyDate,
+    setLowQuality,
+    setShelterDoor: shelter.setDoor,
+    updateContactShadows: contactShadows.update,
+    updateFootprints: (ducks, dt) => footprints.update(ducks, currentFrost, currentSnow, dt),
+    helicopter,
+    triggerHelicopter: () => helicopter.trigger(),
+  };
 }

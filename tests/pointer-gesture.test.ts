@@ -2,9 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FeedGesture } from '../src/pointer-gesture';
 
-test('short left click casts with a little hand movement',()=>{
+test('short left click casts with a little hand movement (including iPhone finger pad roll up to 12px)',()=>{
  const g=new FeedGesture();g.down(1,0,100,100,0);
  assert.equal(g.up(1,0,103,102,120),true);
+ const mobileTap=new FeedGesture();mobileTap.down(2,0,200,200,0);
+ assert.equal(mobileTap.up(2,0,209,207,140),true);
 });
 test('camera drag returning to its origin never casts',()=>{
  const g=new FeedGesture();g.down(1,0,100,100,0);g.move(1,150,100);g.move(1,100,100);

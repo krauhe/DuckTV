@@ -6,6 +6,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createDuck } from './duck-model';
 import { createFly } from './insect-model';
 import { createEnvironment } from './environment';
+import { createDepthOfField } from './dof';
 import { createEggs } from './eggs';
 import { createForageHoles } from './forage-holes';
 import { Simulation } from './simulation';
@@ -65,6 +66,14 @@ if (fpsLimitSwitch) {
   savePreferences();
  });
 }
+const dofSwitch = $<HTMLInputElement>('dof-toggle');
+if (dofSwitch) {
+ dofSwitch.checked = preferences.dof !== false;
+ dofSwitch.addEventListener('change', () => {
+  preferences.dof = dofSwitch.checked;
+  savePreferences();
+ });
+}
 
 let focusedDuckId: string | null = null;
 const focusCard = $('duck-focus-card');
@@ -97,15 +106,24 @@ focusClose.addEventListener('click', e => {
 });
 const canvas=$<HTMLCanvasElement>('garden');
 const loading=$('loading');
+function isSlowDevice(): boolean {
+ const ua = navigator.userAgent || '';
+ const isAppleTouch = navigator.maxTouchPoints > 0 && /iPhone|iPad|iPod|Macintosh/i.test(ua);
+ const touchOrSmall = matchMedia('(pointer:coarse)').matches || innerWidth < 768 || isAppleTouch;
+ const cores = navigator.hardwareConcurrency ?? 8;
+ const mem = (navigator as { deviceMemory?: number }).deviceMemory ?? 8;
+ return touchOrSmall || cores <= 4 || mem <= 4;
+}
 let renderer:THREE.WebGLRenderer;
-try{renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'low-power'})}
+try{renderer=new THREE.WebGLRenderer({canvas,antialias:!isSlowDevice(),powerPreference:'high-performance'})}
 catch{loading.classList.add('error');loading.textContent='Denne browser kunne ikke starte 3D-haven. Prøv en opdateret browser med WebGL slået til.';throw new Error('WebGL unavailable')}
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));
+canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();});
+renderer.setPixelRatio(Math.min(devicePixelRatio,isSlowDevice()?0.9:1.25));
 renderer.setSize(innerWidth,innerHeight);
-renderer.shadowMap.enabled=true;
+renderer.shadowMap.enabled=!isSlowDevice();
 renderer.shadowMap.type=THREE.PCFShadowMap;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure=1.1;
+renderer.toneMappingExposure=1.25;
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,150);
 function fitCameraWidth(){
@@ -160,7 +178,7 @@ canvas.addEventListener('pointerdown',e=>{
  controls.panSpeed=touch?1.3:1;controls.dampingFactor=touch?.085:.055;
 });
 controls.minDistance=1.6;controls.maxDistance=9;
-controls.minPolarAngle=1.15;controls.maxPolarAngle=Math.PI*.48;
+controls.minPolarAngle=Math.PI*0.25;controls.maxPolarAngle=Math.PI*0.75;
 controls.enablePan=true;
 controls.touches={ONE:THREE.TOUCH.ROTATE,TWO:THREE.TOUCH.DOLLY_PAN};
 controls.screenSpacePanning=false;
@@ -308,11 +326,34 @@ function updateDaylight(dt:number){
  environment.setDaylight(day.light,THREE.MathUtils.clamp((day.minutes-day.sunrise)/(day.sunset-day.sunrise),0,1));
  sim.setNight(day.night);
 }
+let autoDowngraded = false;
+let lowFpsStreak = 0;
+let currentFocusDistance = 4.2;
+const dof = createDepthOfField(renderer);
+function isLowQualityActive(): boolean {
+ if (preferences.quality === 'low') return true;
+ if (preferences.quality === 'high') return false;
+ return isSlowDevice() || autoDowngraded;
+}
 function applyQuality(){
- const compact=matchMedia('(pointer:coarse)').matches || innerWidth<700;
- renderer.setPixelRatio(Math.min(devicePixelRatio,compact?1.0:1.25));
- renderer.shadowMap.enabled=true;
- renderer.setSize(innerWidth,innerHeight);
+ const low = isLowQualityActive();
+ const pr = Math.min(devicePixelRatio, low ? 0.9 : 1.25);
+ renderer.setPixelRatio(pr);
+ renderer.shadowMap.enabled = !low;
+ renderer.setSize(innerWidth, innerHeight);
+ dof.setSize(innerWidth, innerHeight, pr);
+ environment.setLowQuality(low);
+}
+const qualitySelect = $<HTMLSelectElement>('quality-mode');
+if (qualitySelect) {
+ qualitySelect.value = preferences.quality;
+ qualitySelect.addEventListener('change', () => {
+  preferences.quality = qualitySelect.value as Preferences['quality'];
+  autoDowngraded = false;
+  lowFpsStreak = 0;
+  savePreferences();
+  applyQuality();
+ });
 }
 
 applyQuality();
@@ -320,11 +361,11 @@ let weatherGeneration=0;
 async function weatherChanged(){
  const generation=++weatherGeneration;
  const mode=$<HTMLSelectElement>('weather').value;
- const preset=mode==='rain'?{cloud:95,wind:3,rain:1.5,isDay:true}:mode==='cloud'?{cloud:85,wind:2,rain:0,isDay:true}:{cloud:22,wind:1.5,rain:0,isDay:true};
+ const preset=mode==='rain'?{cloud:95,wind:3,rain:1.5,frost:0,snow:0,isDay:true}:mode==='cloud'?{cloud:85,wind:2,rain:0,frost:0,snow:0,isDay:true}:mode==='frost'?{cloud:18,wind:1.2,rain:0,frost:1,snow:0,isDay:true}:mode==='snow'?{cloud:88,wind:2.2,rain:0,frost:0.5,snow:1,isDay:true}:{cloud:22,wind:1.5,rain:0,frost:0,snow:0,isDay:true};
  if(mode!=='live'){
   environment.setWeather(preset);
   sim.setWeather(preset);
-  $('weather-label').textContent=mode==='rain'?'En stille regnbyge':mode==='cloud'?'Under skyerne':'En rolig dag';
+  $('weather-label').textContent=mode==='rain'?'En stille regnbyge':mode==='cloud'?'Under skyerne':mode==='frost'?'Klar vinterdag med rimfrost':mode==='snow'?'Stille snefald over haven':'En rolig dag';
   return;
  }
  $('weather-label').textContent='Henter Gistrup-vejr …';
@@ -383,7 +424,8 @@ function frame(now:number){
    fly.group.rotation.y=Math.sin(sim.time*.7+i)*.6;
    fly.wings.forEach((wing,index)=>wing.rotation.z=(index?1:-1)*Math.sin(sim.time*67)*.7);
   }
-  m.animate({preenTarget:d.preenTarget,gesture:d.gesture,mouthOpen:d.mouthOpen,groundHeight:gardenGroundHeight,waterBob:d.state==='swim'?d.y-POND.waterY:0,speed:d.speed,time:sim.time+i*1.71,state:d.state,look:d.look,peck:d.peck,upright:d.upright,headTilt:d.headTilt,displayDip:d.displayDip,accelerationForward:d.ax*Math.sin(d.heading)+d.az*Math.cos(d.heading),accelerationSide:d.ax*Math.cos(d.heading)-d.az*Math.sin(d.heading),jumpProgress:d.jumpProgress,crouch:d.crouch,landing:d.landing,wetness:d.state==='swim'?1:Math.max(0,1-(sim.time-(d.lastSwimAt??-100))/22),mud:d.mud,oneLeg:d.state==='rest'&&d.speed<0.03&&!d.gesture,trot:d.trot||d.speed>0.95,snail:d.snail});
+   const heliAlert = environment.helicopter.isAudibleOrVisibleNear && d.state !== 'sleep';
+  m.animate({preenTarget:d.preenTarget,gesture:d.gesture,mouthOpen:d.mouthOpen,groundHeight:gardenGroundHeight,waterBob:d.state==='swim'?d.y-POND.waterY:0,speed:d.speed,time:sim.time+i*1.71,state:d.state,look:heliAlert?0.82:d.look,peck:d.peck,upright:heliAlert?Math.max(d.upright,0.65):d.upright,headTilt:d.headTilt,displayDip:d.displayDip,accelerationForward:d.ax*Math.sin(d.heading)+d.az*Math.cos(d.heading),accelerationSide:d.ax*Math.cos(d.heading)-d.az*Math.sin(d.heading),jumpProgress:d.jumpProgress,crouch:d.crouch,landing:d.landing,wetness:d.state==='swim'?1:Math.max(0,1-(sim.time-(d.lastSwimAt??-100))/22),mud:d.mud,oneLeg:d.state==='rest'&&d.speed<0.03&&!d.gesture,trot:d.trot||d.speed>0.95,snail:d.snail});
 
   m.group.updateMatrixWorld(true);
   m.group.getObjectByName('duck-head')!.localToWorld(forageTip.set(0,.036,.30));
@@ -485,6 +527,7 @@ function frame(now:number){
   }
  }
  environment.updateContactShadows(sim.ducks,gardenGroundHeight);
+ environment.updateFootprints(sim.ducks, dt);
  const liveIds=new Set<string>();
  for(const f of sim.foods){
   if(f.eaten&&!f.carriedBy)continue;liveIds.add(f.id);let mesh=foods.get(f.id);
@@ -503,12 +546,43 @@ function frame(now:number){
   }
  }
  for(const [id,mesh] of foods)if(!liveIds.has(id)){scene.remove(mesh);foods.delete(id);foodRotations.delete(id)}
- renderer.render(scene,camera);
+ if (preferences.dof !== false) {
+  let targetFocusDist = camera.position.distanceTo(controls.target);
+  if (focusedDuckId) {
+   const fd = sim.ducks.find(d => d.id === focusedDuckId);
+   if (fd) targetFocusDist = Math.hypot(camera.position.x - fd.x, camera.position.y - (fd.y + 0.35), camera.position.z - fd.z);
+  } else if (sim.ducks.length > 0) {
+   let sumWeight = 0;
+   let weightedDist = 0;
+   for (const d of sim.ducks) {
+    const dist = Math.hypot(camera.position.x - d.x, camera.position.y - (d.y + 0.35), camera.position.z - d.z);
+    const w = 1 / Math.max(1.2, dist * dist);
+    weightedDist += dist * w;
+    sumWeight += w;
+   }
+   if (sumWeight > 0) targetFocusDist = weightedDist / sumWeight;
+  }
+  currentFocusDistance = THREE.MathUtils.lerp(currentFocusDistance, targetFocusDist, 1 - Math.exp(-dt * 6));
+  dof.render(scene, camera, currentFocusDistance);
+ } else {
+  renderer.render(scene,camera);
+ }
  frameCount++;
  if (now - lastFpsTime >= 500) {
   const fps = Math.round((frameCount * 1000) / (now - lastFpsTime));
   frameCount = 0;
   lastFpsTime = now;
+  if (preferences.quality === 'auto' && !autoDowngraded && !isSlowDevice() && sim.time > 4) {
+   if (fps < 19) {
+    lowFpsStreak++;
+    if (lowFpsStreak >= 4) {
+     autoDowngraded = true;
+     applyQuality();
+    }
+   } else {
+    lowFpsStreak = 0;
+   }
+  }
   if (preferences.showFps && fpsVal) {
    fpsVal.textContent = String(fps);
    if (fpsCounter) {
@@ -538,5 +612,5 @@ canvas.addEventListener('animationend',event=>{if(event.animationName==='crt-pic
 renderer.setAnimationLoop(frame);
 document.addEventListener('visibilitychange',()=>{last=performance.now();if(document.hidden){cameraKeys.clear();}});
 // Read-only diagnostics for repeatable browser tests, not part of the visible UI.
-Object.assign(window,{__andeTV:{sim,scene,camera,renderer,project:(x:number,z:number)=>{const p=new THREE.Vector3(x,0,z).project(camera);return {x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2}}}});
+Object.assign(window,{__andeTV:{sim,scene,camera,renderer,environment,triggerHelicopter:()=>environment.triggerHelicopter(),project:(x:number,z:number)=>{const p=new THREE.Vector3(x,0,z).project(camera);return {x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2}}}});
 

@@ -23,7 +23,7 @@ export function lawnTexture(){
     ctx.lineWidth=.6+random()*1.2;ctx.beginPath();ctx.moveTo(x,y);ctx.quadraticCurveTo(x+Math.cos(angle+.3)*length*.5,y+Math.sin(angle+.3)*length*.5,x+Math.cos(angle)*length,y+Math.sin(angle)*length);ctx.stroke();
   }
   const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
-  texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.repeat.set(160/3,160/3);texture.anisotropy=8;
+  texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.repeat.set(320/3,320/3);texture.anisotropy=8;
   return texture;
 }
 

@@ -8,7 +8,7 @@ export class FeedGesture {
  }
  move(id:number,x:number,y:number){
   const c=this.candidate;
-  if(c?.id===id&&Math.hypot(x-c.x,y-c.y)>7)this.candidate=null;
+  if(c?.id===id&&Math.hypot(x-c.x,y-c.y)>14)this.candidate=null;
  }
  up(id:number,button:number,x:number,y:number,time:number){
   this.move(id,x,y);

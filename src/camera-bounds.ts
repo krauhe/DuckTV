@@ -41,7 +41,19 @@ export function constrainGardenCamera(camera: PerspectiveCamera, target: Vector3
  const z=MathUtils.clamp(target.z,GARDEN.minZ+.7,GARDEN.maxZ-.7);
  camera.position.x+=x-target.x;
  camera.position.z+=z-target.z;
- target.set(x,.65,z);
+ target.x = x;
+ target.z = z;
+
+ if (camera.position.y < CAMERA_HEIGHT.min) {
+  const dy = CAMERA_HEIGHT.min - camera.position.y;
+  camera.position.y += dy;
+  target.y += dy;
+ } else if (camera.position.y > CAMERA_HEIGHT.max) {
+  const dy = camera.position.y - CAMERA_HEIGHT.max;
+  camera.position.y -= dy;
+  target.y -= dy;
+ }
+
  camera.position.set(
   MathUtils.clamp(camera.position.x,GARDEN.minX+.15,GARDEN.maxX-.15),
   MathUtils.clamp(camera.position.y,CAMERA_HEIGHT.min,CAMERA_HEIGHT.max),
