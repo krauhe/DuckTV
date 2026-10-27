@@ -2,10 +2,14 @@ import * as THREE from 'three';
 
 /** Fine blades, flattened straw and irregular soil/moss marks in a repeating lawn tile. */
 export function lawnTexture(){
+  if(typeof document==='undefined'){
+    const data=new Uint8Array([100,139,67,255]);
+    const tex=new THREE.DataTexture(data,1,1);tex.needsUpdate=true;return tex as unknown as THREE.CanvasTexture;
+  }
   const canvas=document.createElement('canvas');canvas.width=canvas.height=1024;
   const ctx=canvas.getContext('2d')!;
   let seed=7341;const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
-  ctx.fillStyle='#648b43';ctx.fillRect(0,0,1024,1024);
+  ctx.fillStyle='#5b853c';ctx.fillRect(0,0,1024,1024);
   for(let i=0;i<130;i++){
     const x=random()*1024,y=random()*1024,r=15+random()*90;
     const gradient=ctx.createRadialGradient(x,y,0,x,y,r);
@@ -15,7 +19,7 @@ export function lawnTexture(){
   for(let i=0;i<40000;i++){
     const x=random()*1024,y=random()*1024,length=2+random()*12,angle=random()*Math.PI*2;
     const dry=random()<.12;
-    ctx.strokeStyle=dry?`rgba(164,151,92,${.2+random()*.3})`:`hsla(${78+random()*25},${25+random()*20}%,${23+random()*27}%,.65)`;
+    ctx.strokeStyle=dry?`rgba(172,156,98,${.22+random()*.32})`:`hsla(${80+random()*26},${32+random()*24}%,${24+random()*28}%,.70)`;
     ctx.lineWidth=.6+random()*1.2;ctx.beginPath();ctx.moveTo(x,y);ctx.quadraticCurveTo(x+Math.cos(angle+.3)*length*.5,y+Math.sin(angle+.3)*length*.5,x+Math.cos(angle)*length,y+Math.sin(angle)*length);ctx.stroke();
   }
   const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
@@ -24,6 +28,10 @@ export function lawnTexture(){
 }
 
 export function lawnMarkMask(){
+  if(typeof document==='undefined'){
+    const data=new Uint8Array([255,255,255,255]);
+    const tex=new THREE.DataTexture(data,1,1);tex.needsUpdate=true;return tex as unknown as THREE.CanvasTexture;
+  }
   const canvas=document.createElement('canvas');canvas.width=canvas.height=128;
   const ctx=canvas.getContext('2d')!;ctx.fillStyle='black';ctx.fillRect(0,0,128,128);
   const fade=ctx.createRadialGradient(64,64,10,64,64,64);fade.addColorStop(0,'white');fade.addColorStop(.5,'#777');fade.addColorStop(1,'black');

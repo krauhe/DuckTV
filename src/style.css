@@ -174,3 +174,92 @@ input:checked+.switch-track{background:#03522d}input:checked+.switch-track::afte
 #settings.open~#behavior-notices{visibility:hidden}
 @keyframes behavior-notice{0%{opacity:0}5%,86%{opacity:1}100%{opacity:0}}
 @media(prefers-reduced-motion:reduce){#behavior-notices li{animation:none}}
+
+/* Interaktivt ande-fokuskort */
+.duck-focus-card {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(14, 24, 16, 0.90);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #f4f5f0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 12px 20px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 220px;
+  max-width: 90vw;
+  pointer-events: auto;
+  animation: duck-card-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.duck-focus-card[hidden] {
+  display: none !important;
+}
+@keyframes duck-card-in {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.duck-focus-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 6px;
+  line-height: 1;
+}
+.duck-focus-close:hover { color: #fff; }
+.duck-focus-header {
+  display: flex;
+  flex-direction: column;
+  padding-right: 20px;
+}
+#duck-focus-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #a4e590;
+}
+#duck-focus-title {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.78);
+}
+#duck-focus-status {
+  margin: 4px 0 0;
+  font-size: 0.88rem;
+  color: #e5f0d8;
+  font-style: italic;
+}
+
+.fps-badge {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 5px 12px;
+  border-radius: 99px;
+  background: #123d2cb0;
+  color: #79f79e;
+  border: 1px solid #ffffff2b;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 14px #00000028;
+  pointer-events: auto;
+  user-select: none;
+}
+.fps-badge[hidden] {
+  display: none !important;
+}
+.fps-badge.fps-low {
+  color: #ffb04f;
+}
+.fps-badge.fps-bad {
+  color: #ff6868;
+}

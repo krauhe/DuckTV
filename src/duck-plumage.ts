@@ -42,7 +42,8 @@ export function contourFeathers(skin:THREE.Mesh,kind:DuckKind,sides=64,head=fals
       p.addScaledVector(n,(head?.0005:.0006)+Math.sin(t*Math.PI)*.0008*(1-a*a)+t**3*(head?.0016+seed*.0014:.0015+seed*.004));
       positions.push(p.x,p.y,p.z);
       const centre=kind==='brown'&&!head?(1-a*a)**3*Math.sin(t*Math.PI)**2*.48:0;
-      c.multiplyScalar((head?.95+seed*.08:.94+seed*.10)-centre);colors.push(c.x,c.y,c.z);
+      const rimHighlight = (!head && (along >= 5 || Math.abs(across - 2) >= 1.5)) ? 0.16 : 0;
+      c.multiplyScalar((head?.95+seed*.08:.92+seed*.10)-centre + rimHighlight);colors.push(c.x,c.y,c.z);
       uv.push(head?pu:(a+1)*.025,head?pv:t*.036);
       if(along<7&&across<4){const k=start+along*5+across;indices.push(k,k+5,k+1,k+1,k+5,k+6);}
     }
@@ -82,7 +83,8 @@ export function contourFeathers(skin:THREE.Mesh,kind:DuckKind,sides=64,head=fals
         p.addScaledVector(n,.0009+Math.sin(t*Math.PI)*.001*(1-a*a)+t**3*(.0015+seed*.002));
         p.applyMatrix4(skin.matrix);positions.push(p.x,p.y,p.z);
         const centre=kind==='brown'?(1-a*a)**3*Math.sin(t*Math.PI)**2*.48:0;
-        c.multiplyScalar(.94+seed*.10-centre);colors.push(c.x,c.y,c.z);
+        const rimHighlight = (along >= 5 || Math.abs(across - 2) >= 1.5) ? 0.16 : 0;
+        c.multiplyScalar(.92+seed*.10-centre + rimHighlight);colors.push(c.x,c.y,c.z);
         uv.push((a+1)*.025,t*.036);
         if(along<7&&across<4){const k=start+along*5+across;indices.push(k,k+5,k+1,k+1,k+5,k+6);}
       }
@@ -92,8 +94,16 @@ export function contourFeathers(skin:THREE.Mesh,kind:DuckKind,sides=64,head=fals
   geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
   geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
   geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));geometry.setIndex(indices);geometry.computeVertexNormals();
-  const mat=featherSurface(new THREE.MeshStandardMaterial({vertexColors:true,roughness:.94,side:THREE.DoubleSide}),true);
-  mat.bumpScale=.0007;
-  const mesh=new THREE.Mesh(geometry,mat);mesh.name=head?'duck-head-down':'duck-contour-feathers';mesh.receiveShadow=true;mesh.castShadow=true;
+  const mat = featherSurface(new THREE.MeshPhysicalMaterial({
+    vertexColors: true,
+    roughness: .80,
+    metalness: .02,
+    sheen: .72,
+    sheenRoughness: .42,
+    sheenColor: new THREE.Color('#dcd4c8'),
+    side: THREE.FrontSide,
+  }), true);
+  mat.bumpScale = .0045;
+  const mesh=new THREE.Mesh(geometry,mat);mesh.name=head?'duck-head-down':'duck-contour-feathers';mesh.receiveShadow=true;mesh.castShadow=false;
   return mesh;
 }

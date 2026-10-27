@@ -103,6 +103,7 @@ export interface Duck {
   crouch:number;
   landing:number;
   waterEntries:number;
+  lastSwimAt?:number;
   mouthOpen:number;
   insectsCaught:number;
   id: string;
@@ -122,6 +123,10 @@ export interface Duck {
   upright: number;
   headTilt: number;
   displayDip: number;
+  mud?: number;
+  oneLeg?: boolean;
+  trot?: boolean;
+  snail?: { progress: number; shaking: boolean };
 }
 
 export interface Courtship {
@@ -176,6 +181,7 @@ interface Intent {
   bathEntry?: {shore:Vec2;water:Vec2;wait:Vec2};
   crossingY?: number;
   landedAt:number;
+  postBathStage?:number;
   comfortAt: number;
   comfortUntil: number;
   comfortCount: number;
@@ -197,6 +203,9 @@ interface Intent {
   queueAt: number;
   crossTime: number;
   foodId?: string;
+  snailCatchAt?: number;
+  snailTimer?: number;
+  lastGreetingWagAt?: number;
 }
 
 const kinds: DuckKind[] = ['drake', 'buff', 'brown', 'pied'];
@@ -221,8 +230,89 @@ function mix(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
+export interface SpawnZone {
+  name: string;
+  label: string;
+  starts: Array<{ x: number; z: number; heading: number }>;
+}
+
+export const START_ZONES: readonly SpawnZone[] = [
+  {
+    name: 'shelter-front',
+    label: 'Foran andehuset',
+    starts: [
+      { x: -1.65, z: 0.0, heading: 0.3 },
+      { x: -0.55, z: 0.45, heading: 0.7 },
+      { x: -1.15, z: -0.82, heading: -0.25 },
+      { x: -2.15, z: -0.48, heading: 0.15 },
+    ],
+  },
+  {
+    name: 'center-lawn',
+    label: 'Midt på plænen',
+    starts: [
+      { x: -0.40, z: 0.85, heading: 0.9 },
+      { x: 0.55, z: 0.60, heading: -0.5 },
+      { x: 0.10, z: 1.35, heading: 1.4 },
+      { x: -0.80, z: 0.25, heading: 0.2 },
+    ],
+  },
+  {
+    name: 'bath-stones',
+    label: 'Ved havefliserne mod muslingebassinet',
+    starts: [
+      { x: 0.10, z: -0.40, heading: 1.1 },
+      { x: 0.25, z: 0.25, heading: -0.8 },
+      { x: -0.45, z: -0.20, heading: 0.4 },
+      { x: -0.30, z: 0.40, heading: -0.3 },
+    ],
+  },
+  {
+    name: 'south-garden',
+    label: 'I den solrige forhave mod syd',
+    starts: [
+      { x: 0.50, z: 2.10, heading: -0.6 },
+      { x: 1.40, z: 1.80, heading: 2.2 },
+      { x: 0.85, z: 1.40, heading: 0.3 },
+      { x: 1.55, z: 2.30, heading: -1.7 },
+    ],
+  },
+  {
+    name: 'west-lawn',
+    label: 'Langs den vestlige plæne under bøgehækken',
+    starts: [
+      { x: -2.35, z: 1.10, heading: 0.4 },
+      { x: -3.05, z: 0.65, heading: -0.2 },
+      { x: -2.45, z: 0.30, heading: 1.0 },
+      { x: -3.25, z: 1.40, heading: -0.7 },
+    ],
+  },
+  {
+    name: 'path-crossing',
+    label: 'Langs den patinerede andesti',
+    starts: [
+      { x: -0.60, z: -0.75, heading: 1.5 },
+      { x: -0.10, z: -1.35, heading: 0.8 },
+      { x: -0.85, z: -1.50, heading: -0.3 },
+      { x: -1.30, z: -0.85, heading: 1.1 },
+    ],
+  },
+];
+
+export interface SimulationOptions {
+  spawnZone?: string | number;
+  starts?: Array<{ x: number; z: number; heading: number }>;
+  randomStarts?: boolean;
+}
+
 /** Pure scene simulation. Random input lets tests replay the same flock. */
 export class Simulation {
+  spawnZone?: SpawnZone;
+  private weather = { rain: 0, wind: 1.5 };
+  setWeather(w: { rain?: number; wind?: number }): void {
+    if (w.rain !== undefined) this.weather.rain = w.rain;
+    if (w.wind !== undefined) this.weather.wind = w.wind;
+  }
   ducks: Duck[] = [];
   foods: Food[] = [];
   time = 0;
@@ -235,11 +325,14 @@ export class Simulation {
   private nextFoodId = 0;
   private lastCast = -Infinity;
 
-  constructor(private readonly random: () => number = Math.random) {
-    this.reset();
+  constructor(
+    private readonly random: () => number = Math.random,
+    options?: SimulationOptions | Array<{ x: number; z: number; heading: number }>
+  ) {
+    this.reset(options);
   }
 
-  reset(): void {
+  reset(options?: SimulationOptions | Array<{ x: number; z: number; heading: number }>): void {
     this.shelterDoor.reset();
     this.time = 0;
     this.courtship = null;
@@ -247,12 +340,36 @@ export class Simulation {
     this.nextFoodId = 0;
     this.lastCast = -Infinity;
     this.intents.clear();
-    const starts = [
-      { x: -1.65, z: 0.0, heading: 0.3 },
-      { x: -0.55, z: 0.45, heading: 0.7 },
-      { x: -1.15, z: -0.82, heading: -0.25 },
-      { x: -2.15, z: -0.48, heading: 0.15 },
-    ];
+
+    let starts: Array<{ x: number; z: number; heading: number }>;
+    if (Array.isArray(options)) {
+      starts = options;
+      this.spawnZone = undefined;
+    } else if (options?.starts) {
+      starts = options.starts;
+      this.spawnZone = undefined;
+    } else if (options?.spawnZone !== undefined) {
+      const zone = typeof options.spawnZone === 'number'
+        ? START_ZONES[Math.max(0, Math.min(START_ZONES.length - 1, options.spawnZone))]
+        : (START_ZONES.find(z => z.name === options.spawnZone) ?? START_ZONES[0]);
+      this.spawnZone = zone;
+      starts = zone.starts.map(s => ({ ...s }));
+    } else if (options?.randomStarts || this.random === Math.random) {
+      // I browseren vælges et tilfældigt startområde i haven samt en let organisk positions-variation
+      const zoneIdx = Math.floor(Math.random() * START_ZONES.length);
+      const zone = START_ZONES[zoneIdx];
+      this.spawnZone = zone;
+      const jx = (Math.random() - 0.5) * 0.20;
+      const jz = (Math.random() - 0.5) * 0.20;
+      starts = zone.starts.map(s => {
+        const safe = this.safeLand({ x: s.x + jx, z: s.z + jz });
+        return { x: safe.x, z: safe.z, heading: s.heading + (Math.random() - 0.5) * 0.3 };
+      });
+    } else {
+      // Deterministic fallback for test suites
+      this.spawnZone = START_ZONES[0];
+      starts = START_ZONES[0].starts.map(s => ({ ...s }));
+    }
     this.ducks = kinds.map((kind, index) => {
       const start = starts[index];
       const activities:DuckState[]=kind==='drake'?['guard','guard','forage','preen']:['wander','rest','forage','preen'];
@@ -260,7 +377,7 @@ export class Simulation {
       const duck: Duck = {
         needs: { bath: .1+index*.06, rest: .12+index*.035, sociability: [ .85,.7,.9,1 ][index] },
         mass:[2,1.7,1.85,1.8][index],inertia:[2,1.7,1.85,1.8][index]*.12,vx:0,vz:0,ax:0,az:0,angularVelocity:0,
-        jumpProgress:-1,crouch:0,landing:0,waterEntries:0,mouthOpen:0,insectsCaught:0,
+        jumpProgress:-1,crouch:0,landing:0,waterEntries:0,lastSwimAt:-Infinity,mouthOpen:0,insectsCaught:0,mud:0,
         id: kind, kind, x: start.x, z: start.z, y: 0, wary: false,
         heading: start.heading, state: initialState,
         speed: 0, look: 0, peck: 0, upright: initialState==='forage'||initialState==='preen'?0:1, headTilt: 0, displayDip: 0,
@@ -351,8 +468,9 @@ export class Simulation {
       const intent = this.intents.get(duck.id)!;
       intent.social = perceive(duck,neighbors);
       // Sustained nearby foraging advances this bird's interest, without copying a pose.
+      // Snegle-vejr: regn fremmer hurtigere overgang til fødesøgning (sneglejagt i græsset)
       if(['wander','guard','rest'].includes(duck.state)&&intent.exploreAt>this.time+1)
-        intent.exploreAt-=dt*intent.social.foraging*duck.needs.sociability*1.8;
+        intent.exploreAt-=dt*(intent.social.foraging*duck.needs.sociability*1.8 + (this.weather.rain > 0.25 ? this.weather.rain * 1.6 : 0));
       this.observeFlock(duck,intent,neighbors,dt);
       if(!this.night&&!this.courtship&&!duck.gesture&&!intent.retreating&&!this.foods.some(f=>!f.eaten)&&
         ['wander','rest','guard'].includes(duck.state)&&this.time>=intent.imitateAgainAt&&wingStimulus(duck,neighbors)){
@@ -362,6 +480,15 @@ export class Simulation {
       }
       duck.needs.bath = clamp(duck.needs.bath + dt*(duck.state==='swim' ? -.13 : .018+intent.social.bathing*.015),0,1);
       duck.needs.rest = clamp(duck.needs.rest + dt*(duck.state==='sleep' ? -.065 : .009+Math.min(2,duck.speed)*.009),0,1);
+      if (['wander', 'guard'].includes(duck.state) && !duck.gesture && this.time > (intent.lastGreetingWagAt ?? 0) + 20 && !this.foods.some(f => !f.eaten)) {
+        const friend = neighbors.find(n => n.id !== duck.id && distance(duck, n) < 0.85);
+        const wagHash = Math.sin(this.time * 7.3 + this.ducks.indexOf(duck) * 13.7);
+        if (friend && wagHash > 0.45) {
+          duck.gesture = { kind: 'tailWag', progress: 0, side: wagHash > 0.7 ? 1 : -1 };
+          intent.gestureStarted = this.time;
+          intent.lastGreetingWagAt = this.time;
+        }
+      }
     }
     this.updateDisplay();
 
@@ -389,7 +516,7 @@ export class Simulation {
         this.updateExpression(duck, dt);
         continue;
       }
-      if(duck.gesture&&!(duck.gesture.kind==='wingFlap'&&duck.speed>.08)&&!this.night&&!this.foods.some(f=>!f.eaten)){
+      if(duck.gesture&&duck.gesture.kind!=='tailWag'&&!(duck.gesture.kind==='wingFlap'&&duck.speed>.08)&&!this.night&&!this.foods.some(f=>!f.eaten)){
         this.brake(duck,intent,dt);this.updateExpression(duck,dt);continue;
       }
       if (this.comfort(duck, intent)) { this.brake(duck,intent,dt);this.updateExpression(duck, dt); continue; }
@@ -402,6 +529,13 @@ export class Simulation {
       else this.female(duck, intent, dt);
       if(!intent.moved)this.brake(duck,intent,dt);
       this.updateExpression(duck, dt);
+      if (duck.state === 'forage') {
+        duck.mud = Math.min(1, (duck.mud ?? 0) + dt * 0.18);
+      } else if (duck.state === 'drink' || duck.state === 'swim') {
+        duck.mud = Math.max(0, (duck.mud ?? 0) - dt * 0.55);
+      } else if (duck.mud) {
+        duck.mud = Math.max(0, duck.mud - dt * 0.012);
+      }
     }
     for(const food of this.foods)if(food.carriedBy&&!this.ducks.some(d=>d.id===food.carriedBy&&d.state==='eat'))food.carriedBy=undefined;
     this.separateDucks();
@@ -455,7 +589,10 @@ export class Simulation {
     const target=this.safeLand({x:leader.x-Math.sin(heading)*profile.followDistance+Math.cos(heading)*side*.25,
       z:leader.z-Math.cos(heading)*profile.followDistance-Math.sin(heading)*side*.25});
     duck.state=duck.kind==='drake'?'guard':'wander';duck.peck=0;
+    const gap = distance(duck, target);
+    duck.trot = gap > 1.2;
     if(distance(duck,target)>.25)this.moveLand(duck,target,BEHAVIOR.walkSpeed*profile.walkScale,dt);
+    else duck.trot = false;
     if(leader.state==='forage'){intent.exploreAt=Math.min(intent.exploreAt,this.time+1);stop();}
     return true;
   }
@@ -558,6 +695,7 @@ export class Simulation {
     const finish = () => {
       duck.state = duck.kind === 'drake' ? 'guard' : 'wander';
       duck.insect = undefined; duck.peck = 0; intent.insectEscape = undefined;
+      duck.snail = undefined; intent.snailTimer = undefined; intent.snailCatchAt = undefined;
       intent.timer = 0; intent.route = undefined;
       intent.exploreAt = this.time + BEHAVIOR.exploreCooldown + this.ducks.indexOf(duck) * 2 + this.range(0,6);
     };
@@ -574,7 +712,18 @@ export class Simulation {
         const phase=(this.time-(intent.drinkUntil-6))%2;
         duck.peck=phase<1.15?.46+.04*Math.sin(phase/1.15*Math.PI):.20;
       }
-      if(this.time>=intent.drinkUntil){finish();return false;}
+      if(this.time>=intent.drinkUntil){
+        duck.mud = 0;
+        duck.state = duck.kind === 'drake' ? 'guard' : 'wander';
+        duck.peck = 0;
+        intent.timer = 0;
+        intent.route = undefined;
+        intent.drinkUntil = undefined;
+        intent.drinkTarget = undefined;
+        duck.gesture = { kind: 'tailWag', progress: 0, side: 1 };
+        intent.gestureStarted = this.time;
+        return false;
+      }
       return true;
     }
     if (!active) {
@@ -632,19 +781,50 @@ export class Simulation {
       }
       this.moveLand(duck, this.safeLand(insect), BEHAVIOR.chaseSpeed, dt);
     } else {
-      const cycle=5.5*(intent.activityScale??1)*DUCK_PROFILES[duck.kind].forageTempo;
-      const step = Math.floor(elapsed / cycle), phase = elapsed % cycle;
-      if (step !== intent.forageStep) {
-        intent.forageStep = step;
-        const angle = duck.heading + this.range(-.35, .35);
-        intent.target = this.safeLand({ x: duck.x+Math.sin(angle)*.3, z: duck.z+Math.cos(angle)*.3 });
-      }
-      if (phase < .65) this.moveLand(duck, intent.target, BEHAVIOR.forageSpeed, dt);
-      else {
-        duck.look = Math.sin(elapsed*4)*.18;
-        // Probe only after braking, so the bill does not scrape along the ground.
-        // Probe in bouts with brief head-up checks, seen in Oct 6/7 references.
-        if (duck.speed < .06 && phase<cycle-.85) duck.peck = .78+.12*Math.sin(elapsed*6.5)**2;
+      if (intent.snailTimer !== undefined) {
+        intent.snailTimer += dt;
+        duck.speed = 0; duck.vx = 0; duck.vz = 0;
+        if (intent.snailTimer < 0.5) {
+          duck.peck = 0.22;
+          duck.snail = { progress: 0, shaking: false };
+        } else if (intent.snailTimer < 1.3) {
+          duck.peck = 0.15;
+          duck.snail = { progress: 0.1, shaking: true };
+        } else if (intent.snailTimer < 1.9) {
+          duck.peck = 0.08;
+          duck.snail = { progress: Math.min(1, (intent.snailTimer - 1.3) / 0.6), shaking: false };
+        } else {
+          duck.snail = undefined;
+          intent.snailTimer = undefined;
+          duck.gesture = { kind: 'tailWag', progress: 0, side: 1 };
+          intent.gestureStarted = this.time;
+        }
+      } else {
+        const cycle=5.5*(intent.activityScale??1)*DUCK_PROFILES[duck.kind].forageTempo;
+        const step = Math.floor(elapsed / cycle), phase = elapsed % cycle;
+        if (step !== intent.forageStep) {
+          intent.forageStep = step;
+          const angle = duck.heading + this.range(-.35, .35);
+          intent.target = this.safeLand({ x: duck.x+Math.sin(angle)*.3, z: duck.z+Math.cos(angle)*.3 });
+        }
+        if (phase < .65) this.moveLand(duck, intent.target, BEHAVIOR.forageSpeed, dt);
+        else {
+          duck.look = Math.sin(elapsed*4)*.18;
+          // Probe only after braking, so the bill does not scrape along the ground.
+          // Probe in bouts with brief head-up checks, seen in Oct 6/7 references.
+          if (duck.speed < .06 && phase<cycle-.85) {
+            duck.peck = .78+.12*Math.sin(elapsed*6.5)**2;
+            if (this.weather.rain > 0.05) {
+              if (intent.snailCatchAt === undefined) {
+                intent.snailCatchAt = this.time + 4;
+              } else if (this.time >= intent.snailCatchAt && elapsed > 3) {
+                intent.snailTimer = 0;
+                duck.snail = { progress: 0, shaking: false };
+                intent.snailCatchAt = this.time + 14;
+              }
+            }
+          }
+        }
       }
     }
     return true;
@@ -654,6 +834,7 @@ export class Simulation {
     const active=duck.state==='preen'||duck.state==='sleep';
     const foodAvailable=this.foods.some(food=>!food.eaten);
     if(active){
+      duck.vx = 0; duck.vz = 0; duck.speed = 0;
       if(duck.state==='preen' && this.time>=intent.comfortUntil && !foodAvailable && intent.social.activity<.3 && duck.needs.rest>.25){
         duck.state='sleep'; intent.comfortUntil=this.time+BEHAVIOR.sleepSeconds; return true;
       }
@@ -718,7 +899,16 @@ export class Simulation {
     const comfortable=duck.state==='preen'||duck.state==='sleep';
     const searching = duck.state === 'chase' || duck.state === 'forage' || duck.state==='drink';
     const checking=duck.state==='forage'&&duck.peck<.1&&duck.speed<.06;
-    const uprightTarget = duck.wary||duck.gesture?.kind==='wingFlap'||checking ? 1 : duck.state === 'swim' || comfortable || searching ? 0 : inWater || displaying || duck.state === 'notice' ? 1 : relaxed ? 0.12 : 1;
+    const sentinelCycle = (this.time + 12) % 38;
+    const alertDelay = index * 0.22;
+    const isFlockAlert = !this.night && !this.foods.some(f => !f.eaten) &&
+      (this.ducks.some(d => d.wary) || (sentinelCycle >= alertDelay && sentinelCycle < 2.9));
+    const alertPosture = isFlockAlert && !comfortable && !inWater && duck.state !== 'eat';
+    if (alertPosture && (duck.state === 'wander' || duck.state === 'guard' || duck.state === 'forage')) {
+      duck.speed *= Math.exp(-dt * 3.5);
+    }
+
+    const uprightTarget = duck.wary||alertPosture||duck.gesture?.kind==='wingFlap'||checking ? 1 : duck.state === 'swim' || comfortable || searching ? 0 : inWater || displaying || duck.state === 'notice' ? 1 : relaxed ? 0.12 : 1;
     duck.upright += (uprightTarget - duck.upright) * (1 - Math.exp(-dt * 2.5));
     const curiosityPhase = (this.time + index * 3.7) % 13;
     const curious = !duck.wary && !searching && !comfortable && !inWater && !displaying && duck.state !== 'eat' && (intent.idleFor > .6 || duck.state === 'notice') && curiosityPhase < 2.6;
@@ -730,9 +920,13 @@ export class Simulation {
       const choice=Math.floor((this.time+index*1.73)/(2.7+index*.43))%3;
       const neighbour=this.ducks.filter(other=>other!==duck).reduce((near,other)=>
         !near||distance(duck,other)<distance(duck,near)?other:near,undefined as Duck|undefined);
-      const interest=duck.wary||curious||choice===0?this.viewer:choice===1?neighbour:undefined;
+      const interest=alertPosture ? this.viewer : (duck.wary||curious||choice===0?this.viewer:choice===1?neighbour:undefined);
+      const turnDelta = Math.atan2(Math.sin(intent.headingTarget - duck.heading), Math.cos(intent.headingTarget - duck.heading));
+      const travelLook = (duck.speed > 0.04 || Math.abs(duck.angularVelocity) > 0.08)
+        ? clamp(turnDelta * 0.55, -0.75, 0.75)
+        : Math.sin(this.time * 0.9 + index * 2.1) * 0.10;
       duck.look=interest?clamp(Math.atan2(Math.sin(Math.atan2(interest.x-duck.x,interest.z-duck.z)-duck.heading),
-        Math.cos(Math.atan2(interest.x-duck.x,interest.z-duck.z)-duck.heading)),-1.15,1.15):0;
+        Math.cos(Math.atan2(interest.x-duck.x,interest.z-duck.z)-duck.heading)),-1.15,1.15):travelLook;
     }
     duck.displayDip = 0;
     if (displaying) {
@@ -757,17 +951,38 @@ export class Simulation {
     })&&
       distance(duck,POND)>POND.radius+.8&&duck.x>GARDEN.minX+.8&&duck.x<GARDEN.maxX-.8&&
       duck.z>GARDEN.minZ+.8&&duck.z<GARDEN.maxZ-.8&&!(duck.x<SHELTER.maxX+.8&&duck.z<SHELTER.front+.8);
+    const canStartNew = ['wander', 'rest', 'guard'].includes(duck.state);
     const eligible=!this.night&&!duck.wary&&!displaying&&!this.foods.some(f=>!f.eaten)&&
-      ['wander','rest','guard'].includes(duck.state)&&duck.speed<.9&&duck.jumpProgress<0&&
-      (!duck.gesture||duck.gesture.kind==='tailWag'||wingSpace);
-    if(!eligible){
+      (canStartNew || duck.gesture?.kind==='tailWag')&&duck.speed<.9&&duck.jumpProgress<0&&
+      (!duck.gesture||duck.gesture.kind==='tailWag'||wingSpace||intent.postBathStage===2);
+    if(!eligible || (!duck.gesture && !canStartNew)){
       intent.respondAt=undefined;
+      intent.postBathStage = 0;
       if(duck.gesture){duck.gesture=undefined;intent.gestureAt=this.time+this.range(15,35);}
       return;
     }
     if(duck.gesture){
       duck.gesture.progress=(this.time-intent.gestureStarted)/GESTURE_SECONDS[duck.gesture.kind];
-      if(duck.gesture.progress>=1){duck.gesture=undefined;intent.gestureAt=this.time+this.range(25,55);}
+      if(duck.gesture.progress>=1){
+        const wasWag = duck.gesture.kind === 'tailWag';
+        if (intent.postBathStage === 1) {
+          intent.postBathStage = 2;
+          duck.gesture = { kind: 'wingFlap', progress: 0, side: 1, social: true };
+          intent.gestureStarted = this.time;
+          return;
+        } else if (intent.postBathStage === 2) {
+          intent.postBathStage = 0;
+          duck.gesture = undefined;
+          duck.state = 'preen';
+          duck.vx = 0; duck.vz = 0; duck.speed = 0;
+          duck.preenTarget = 'wing';
+          intent.comfortUntil = this.time + 6;
+          intent.gestureAt = this.time + 40;
+          return;
+        }
+        duck.gesture=undefined;
+        if (!wasWag) intent.gestureAt=this.time+this.range(25,55);
+      }
       return;
     }
     if(intent.respondAt!==undefined){
@@ -812,7 +1027,22 @@ export class Simulation {
       if(pose.done){
         food.carriedBy=undefined;
         intent.foodId=undefined;duck.peck=0;duck.mouthOpen=0;
-        duck.state='wander';intent.timer=0;
+        const remainingFood = this.foods.some(f => !f.eaten);
+        if (!remainingFood) {
+          // Hurtigt smut til muslingekanten for at skylle og dyppe næbbet efter pastaen
+          const angle = -1.05 + this.ducks.indexOf(duck) * 0.7;
+          intent.drinkTarget = {
+            x: POND.x + Math.cos(angle) * (POND.radius + BEHAVIOR.pondLandMargin + 0.04),
+            z: POND.z + Math.sin(angle) * (POND.radius + BEHAVIOR.pondLandMargin + 0.04)
+          };
+          intent.drinkUntil = this.time + 3.2;
+          intent.route = undefined;
+          duck.state = 'drink';
+          duck.peck = 0;
+        } else {
+          duck.state = 'wander';
+          intent.timer = 0;
+        }
       }
       return;
     }
@@ -842,7 +1072,8 @@ export class Simulation {
       const before = { x: duck.x, z: duck.z };
       this.moveLand(duck, food, BEHAVIOR.approachSpeed * this.temperament(duck.kind), dt);
       intent.approachTravel += distance(before, duck);
-      duck.look = 0;
+      const foodDelta = Math.atan2(Math.sin(intent.headingTarget - duck.heading), Math.cos(intent.headingTarget - duck.heading));
+      duck.look = clamp(foodDelta * 0.45, -0.6, 0.6);
       if(distance(food,this.viewer)<BEHAVIOR.viewerDistance[duck.kind] && distance(duck,food)>BEHAVIOR.foodReach){
         duck.wary=true;
         duck.look=Math.sin(this.time*2)*.28;
@@ -871,6 +1102,7 @@ export class Simulation {
     duck.look = Math.sin(this.time * 1.8 + this.ducks.indexOf(duck)) * 0.16;
     duck.peck = 0;
     if (duck.state === 'rest') {
+      if (this.weather.wind > 2.8) intent.headingTarget = -Math.PI * 0.65;
       intent.timer -= dt;
       if (intent.timer <= 0) duck.state = 'wander';
       return;
@@ -892,6 +1124,8 @@ export class Simulation {
     }
     duck.state = 'wander';
     intent.timer -= dt;
+    const flockCenter = intent.social.center;
+    duck.trot = !!flockCenter && distance(duck, flockCenter) > 2.0;
     this.moveLand(duck, intent.target, BEHAVIOR.walkSpeed * this.temperament(duck.kind), dt);
   }
 
@@ -909,7 +1143,9 @@ export class Simulation {
     if (gap > BEHAVIOR.guardFollowStart) intent.guardMoving = true;
     else if (gap < BEHAVIOR.guardFollowStop) intent.guardMoving = false;
     if (intent.guardMoving) this.moveLand(duck, target, BEHAVIOR.guardSpeed, dt);
-    else if (intent.timer <= 0) {
+    else if (this.weather.wind > 2.8) {
+      intent.headingTarget = -Math.PI * 0.65;
+    } else if (intent.timer <= 0) {
       this.face(duck, { x: duck.x + Math.sin(this.time * 0.6), z: duck.z + Math.cos(this.time * 0.6) });
       intent.timer = BEHAVIOR.guardTurnSeconds;
     }
@@ -965,6 +1201,7 @@ export class Simulation {
   }
 
   private swim(duck: Duck, intent: Intent, dt: number): void {
+    duck.lastSwimAt = this.time;
     const afloat=this.time-intent.landedAt;
     duck.y = POND.waterY + BEHAVIOR.swimBobHeight * Math.sin(afloat * BEHAVIOR.swimBobRate)*(1-Math.exp(-afloat*3))
       -.035*Math.sin(afloat*18)*Math.exp(-afloat*8);
@@ -993,10 +1230,15 @@ export class Simulation {
     intent.headingTarget = -Math.PI / 2;
     if (t >= 1) {
       duck.y = 0;
+      duck.vx = 0; duck.vz = 0; duck.speed = 0;
       duck.state = 'wander';
+      duck.lastSwimAt = this.time;
       intent.queueAt = Infinity;
       intent.target=this.safeLand({x:shore.x-.9,z:shore.z+.8});
-      intent.timer=3;
+      intent.timer=1.2;
+      intent.postBathStage = 1;
+      duck.gesture = { kind: 'tailWag', progress: 0, side: 1 };
+      intent.gestureStarted = this.time;
     }
   }
 
@@ -1028,7 +1270,7 @@ export class Simulation {
     duck.crouch=0;duck.jumpProgress=t;
     duck.x=mix(from.x,to.x,t);duck.z=mix(from.z,to.z,t);
     duck.y=intent.crossingY+(hop.impulse/duck.mass)*elapsed-.5*HOP_GRAVITY*elapsed*elapsed;
-    if(t>=1){duck.y=endY;duck.jumpProgress=-1;duck.landing=1;intent.landedAt=this.time}
+    if(t>=1){duck.y=endY;duck.jumpProgress=-1;duck.landing=1;intent.landedAt=this.time;}
     return t;
   }
 

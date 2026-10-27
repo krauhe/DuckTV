@@ -301,3 +301,37 @@ test('the visible hock stays nearly straight in standing, feeding and most of wa
   angles.sort((a,b)=>a-b);assert.ok(angles[Math.floor(angles.length*.9)]<20,'at least 90% of support frames are near extension');
  }
 });
+
+test('drake tail has curled drake feather while hens have straight tail', () => {
+  const drake = createDuck('drake');
+  assert.ok(drake.group.getObjectByName('drake-curl'), 'drake tail must have drake-curl');
+  for (const hen of ['buff', 'brown', 'pied'] as const) {
+    const model = createDuck(hen);
+    assert.equal(model.group.getObjectByName('drake-curl'), undefined, 'hen must not have drake-curl');
+  }
+});
+
+test('drake head and speculum materials feature iridescent sheen', () => {
+  const drake = createDuck('drake');
+  const skull = drake.group.getObjectByName('duck-skull') as THREE.Mesh;
+  const mat = skull.material as THREE.MeshPhysicalMaterial;
+  assert.ok(mat instanceof THREE.MeshPhysicalMaterial, 'drake skull should use MeshPhysicalMaterial');
+  assert.ok((mat.iridescence ?? 0) > 0.4, 'drake head has noticeable iridescence');
+});
+
+test('awake ducks blink periodically with open eyes outside blink window and closed eyes during sleep', () => {
+  const drake = createDuck('drake');
+  const head = drake.group.getObjectByName('duck-head')!;
+  const leftEye = head.getObjectByName('duck-left-eye')!;
+
+  drake.animate({ state: 'guard', speed: 0, time: 1.0, upright: 1, look: 0, peck: 0, headTilt: 0, displayDip: 0 });
+  assert.ok(leftEye.scale.y > 0.95, 'awake eye is open outside blink window');
+
+  drake.animate({ state: 'guard', speed: 0, time: 0.07, upright: 1, look: 0, peck: 0, headTilt: 0, displayDip: 0 });
+  assert.ok(leftEye.scale.y < 0.15, 'awake eye closes during blink pulse');
+
+  for (let i = 0; i < 60; i++) {
+    drake.animate({ state: 'sleep', speed: 0, time: 1.0 + i / 60, upright: 0, look: 0, peck: 0, headTilt: 0, displayDip: 0 });
+  }
+  assert.ok(leftEye.scale.y < 0.12, 'sleeping eye remains closed');
+});

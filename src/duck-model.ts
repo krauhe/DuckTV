@@ -17,26 +17,28 @@ type Palette = {
 
 const PALETTES: Record<DuckKind, Palette> = {
   drake: {
-    body: '#c7c7bc', breast: '#886253', neck: '#715044', head: '#303334',
-    wing: '#aaa79c', covert: '#c6bdb1', feather: '#666976', tail: '#454949',
-    bill: '#d6b447', foot: '#bf814f', eyeRing: '#b6a27b', neckBand: '#e6e5d5',
+    body: '#c8c8bd', breast: '#743d2f', neck: '#5a3b30', head: '#1e4030',
+    wing: '#b0ada2', covert: '#ccc4b8', feather: '#555964', tail: '#252929',
+    bill: '#d8b835', foot: '#bf814f', eyeRing: '#b6a27b', neckBand: '#f8f7ee',
   },
   buff: {
-    body: '#ad8363', breast: '#bc936b', neck: '#b9926e', head: '#c29b75',
-    wing: '#bca084', covert: '#d6c9b7', feather: '#787675', tail: '#b4a18a',
+    body: '#ba885a', breast: '#c99667', neck: '#c49469', head: '#caa17a',
+    wing: '#c4a282', covert: '#decbb5', feather: '#787675', tail: '#b8a48d',
     bill: '#c6905c', foot: '#9f7954', eyeRing: '#dfb98a',
   },
   brown: {
-    body: '#ad895e', breast: '#b48e62', neck: '#b4946b', head: '#b69a73',
-    wing: '#957653', covert: '#b9a687', feather: '#474946', tail: '#8a795f',
-    bill: '#856c4e', foot: '#886c51', eyeRing: '#b78c63', neckBand: '#d6c9b5',
+    body: '#a87e50', breast: '#b68856', neck: '#ba9268', head: '#bb966b',
+    wing: '#946e47', covert: '#c2ab88', feather: '#44403a', tail: '#8a755b',
+    bill: '#856c4e', foot: '#886c51', eyeRing: '#b78c63', neckBand: '#d8cbb7',
   },
   pied: {
-    body: '#ebe9df', breast: '#bc8e68', neck: '#eceae0', head: '#eeeae0',
-    wing: '#64666b', covert: '#e1dfd6', feather: '#e0dfd5', tail: '#505357',
+    body: '#f3f1e8', breast: '#ba8150', neck: '#f3f1e8', head: '#f4f2ea',
+    wing: '#3e4148', covert: '#eceae1', feather: '#e5e3d9', tail: '#3c3f44',
     bill: '#cba66b', foot: '#b28a5c', eyeRing: '#b9a890',
   },
 };
+
+const BLINK_OFFSETS: Record<DuckKind, number> = { drake: 0, buff: 1.37, brown: 2.83, pied: 4.19 };
 
 const sphere = new THREE.SphereGeometry(1, 16, 12);
 const featherSphere = new THREE.SphereGeometry(1, 12, 8);
@@ -57,8 +59,15 @@ function featherGeometry(scale:[number,number,number],position:[number,number,nu
 const cylinder = new THREE.CylinderGeometry(1, 1, 1, 8);
 const yAxis = new THREE.Vector3(0, 1, 0);
 
-function material(hex: string, roughness = 0.89): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({ color: hex, roughness, metalness: 0 });
+function material(hex: string, roughness = 0.82): THREE.MeshPhysicalMaterial {
+  return new THREE.MeshPhysicalMaterial({
+    color: hex,
+    roughness,
+    metalness: 0.02,
+    sheen: 0.65,
+    sheenRoughness: 0.42,
+    sheenColor: new THREE.Color('#dcd4c8'),
+  });
 }
 
 function ellipsoid(
@@ -145,12 +154,23 @@ function bill(parent: THREE.Object3D, mat: THREE.Material, lowerMat: THREE.Mater
   geo.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
   geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
   geo.setIndex(indices);geo.computeVertexNormals();
-  const surface=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.54});
-  const upper=new THREE.Mesh(geo,surface);upper.castShadow=true;upper.receiveShadow=true;parent.add(upper);
+  const surface=new THREE.MeshPhysicalMaterial({
+    color:0xffffff,
+    vertexColors:true,
+    roughness:.46,
+    clearcoat:.35,
+    clearcoatRoughness:.22,
+  });
+  const upper=new THREE.Mesh(geo,surface);upper.name='duck-upper-bill';upper.castShadow=true;upper.receiveShadow=true;parent.add(upper);
   const jaw=new THREE.Group();jaw.name='duck-lower-jaw';jaw.position.set(0,.035,.09);parent.add(jaw);
   ellipsoid(jaw,lowerMat,[0,-.004,.119],[.052,.007,.102]);
-  ellipsoid(jaw,material('#78524a'),[0,.003,.112],[.035,.002,.068]);
-  const dark=material('#494337',.62);
+  ellipsoid(jaw,material('#78524a',.55),[0,.003,.112],[.035,.002,.068]);
+  const dark=new THREE.MeshPhysicalMaterial({
+    color:'#494337',
+    roughness:.52,
+    clearcoat:.25,
+    clearcoatRoughness:.3,
+  });
   for(const side of [-1,1]){
     // Narrow oval nares sit flush on the sloping upper surface.
     ellipsoid(parent,lowerMat,[side*.031,.068,.162],[.009,.002,.017],[0,side*.22,0]);
@@ -163,6 +183,16 @@ function bill(parent: THREE.Object3D, mat: THREE.Material, lowerMat: THREE.Mater
   }
   // Small keratin nail, following the rounded tip rather than projecting from it.
   ellipsoid(parent,dark,[0,.043,.301],[.014,.0025,.014],[-.18,0,0]);
+  const snailGroup = new THREE.Group();
+  snailGroup.name = 'duck-snail';
+  snailGroup.position.set(0, .036, .31);
+  snailGroup.visible = false;
+  const shellMat = new THREE.MeshStandardMaterial({ color: 0x3d3024, roughness: 0.45, metalness: 0.1 });
+  ellipsoid(snailGroup, shellMat, [0, .008, 0], [.016, .013, .019], [0.2, 0.4, 0.1]);
+  ellipsoid(snailGroup, shellMat, [.006, .012, -.004], [.011, .009, .013], [-0.1, -0.3, 0.2]);
+  const snailBodyMat = new THREE.MeshStandardMaterial({ color: 0x5a5043, roughness: 0.6 });
+  ellipsoid(snailGroup, snailBodyMat, [-.004, .002, .010], [.007, .005, .014]);
+  parent.add(snailGroup);
   return jaw;
 }
 function webbedFoot(parent: THREE.Object3D, footMat: THREE.Material): THREE.Group {
@@ -228,7 +258,18 @@ function addWing(parent: THREE.Object3D, side: number, p: Palette,
       [side*(.095+row*.002),.078-row*.022,-.005-i*.022-row*.012],
       [.009,.019,.039],[.3,0,side*-.18],true);
   if (p !== PALETTES.pied) {
-    const speculum = material(p===PALETTES.drake?'#365963':'#45474d', .75);
+    const speculumColor = p === PALETTES.drake ? '#294d4d' : '#3c4046';
+    const speculum = featherSurface(new THREE.MeshPhysicalMaterial({
+      color: speculumColor,
+      roughness: 0.48,
+      metalness: 0.05,
+      iridescence: p === PALETTES.drake ? 0.6 : 0.35,
+      iridescenceIOR: 1.36,
+      iridescenceThicknessRange: [260, 400],
+      sheen: 0.4,
+      sheenRoughness: 0.4,
+      sheenColor: new THREE.Color('#2e636b'),
+    }));
     ellipsoid(wing,material('#ded9c7'),[side*.108,-.012,-.218],[.009,.013,.102],[.18,0,side*-.16],true);
     ellipsoid(wing, speculum, [side * .106, -.047, -.215],
       [.010, .042, .092], [.18, 0, side * -.16], true);
@@ -300,8 +341,14 @@ export function createDuck(kind: DuckKind): {
   bodyShape.name = 'duck-body-shape';
   torso.add(bodyShape);
 
-  const bodyMat = new THREE.MeshStandardMaterial({
-    vertexColors: true, roughness: .91, side: THREE.DoubleSide,
+  const bodyMat = new THREE.MeshPhysicalMaterial({
+    vertexColors: true,
+    roughness: .82,
+    metalness: .02,
+    sheen: .72,
+    sheenRoughness: .42,
+    sheenColor: new THREE.Color('#dcd4c8'),
+    side: THREE.DoubleSide,
   });
   const bodyRings: Ring[] = [
     { y: -.29, cx: 0, cz: -.065, rx: .008, rz: .010, color: p.body },
@@ -357,14 +404,49 @@ export function createDuck(kind: DuckKind): {
     ellipsoid(tail, tailMat, [side * .057, 0, -.057],
       [.049, .043, .185], [-.30, side * .13, side * .14], true);
   }
+  if (kind === 'drake') {
+    const curl = new THREE.Group();
+    curl.name = 'drake-curl';
+    curl.position.set(0, .042, -.10);
+    const curlMat = featherSurface(new THREE.MeshPhysicalMaterial({
+      color: '#282b2b',
+      roughness: .45,
+      metalness: .05,
+      iridescence: .55,
+      iridescenceIOR: 1.38,
+      iridescenceThicknessRange: [260, 420],
+      sheen: .45,
+      sheenRoughness: .42,
+      sheenColor: new THREE.Color('#2d6e5e'),
+    }));
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, -.01, -.02),
+      new THREE.Vector3(0, .025, -.06),
+      new THREE.Vector3(0, .068, -.055),
+      new THREE.Vector3(0, .082, -.018),
+      new THREE.Vector3(0, .065, .012),
+    ]);
+    const tubeGeo = new THREE.TubeGeometry(curve, 16, .011, 8, false);
+    const curlMesh = new THREE.Mesh(tubeGeo, curlMat);
+    curlMesh.castShadow = true;
+    curl.add(curlMesh);
+    ellipsoid(curl, curlMat, [0, .065, .014], [.010, .010, .010]);
+    tail.add(curl);
+  }
 
   // Neck is its own pivot: a peck swings the entire long neck forward and down.
   const neckPivot = new THREE.Group();
   neckPivot.name = 'duck-neck';
   neckPivot.position.set(0, .302, .143);
   torso.add(neckPivot);
-  const neckMat = new THREE.MeshStandardMaterial({
-    vertexColors: true, roughness: .89, side: THREE.DoubleSide,
+  const neckMat = new THREE.MeshPhysicalMaterial({
+    vertexColors: true,
+    roughness: .82,
+    metalness: .02,
+    sheen: .72,
+    sheenRoughness: .42,
+    sheenColor: new THREE.Color('#dcd4c8'),
+    side: THREE.DoubleSide,
   });
   const band = p.neckBand ?? p.neck;
   featherSurface(neckMat,true,kind==='brown');
@@ -385,7 +467,19 @@ export function createDuck(kind: DuckKind): {
   head.name = 'duck-head';
   head.position.set(0, .440, .065);
   neckPivot.add(head);
-  const headMat = featherSurface(material(p.head, kind === 'drake' ? .65 : .86),true);
+  const headMat = kind === 'drake'
+    ? featherSurface(new THREE.MeshPhysicalMaterial({
+        color: p.head,
+        roughness: 0.46,
+        metalness: 0.04,
+        iridescence: 0.55,
+        iridescenceIOR: 1.38,
+        iridescenceThicknessRange: [260, 420],
+        sheen: 0.45,
+        sheenRoughness: 0.42,
+        sheenColor: new THREE.Color('#2d6e5e'),
+      }), true)
+    : featherSurface(material(p.head, .86), true);
   const headSkin=ellipsoid(head, headMat, [0, .065, .030], [.071, .093, .110]);
   headSkin.name='duck-skull';
   headSkin.geometry=new THREE.SphereGeometry(1,48,32);
@@ -418,12 +512,18 @@ export function createDuck(kind: DuckKind): {
   // A narrow feathered eyelid surrounds a small, inset dark eye.
   const eyeRingMat = material(p.eyeRing);
   eyeRingMat.color.lerp(new THREE.Color(p.head),.65);
-  const eyeMat = material('#181a17', .24);
+  const eyeMat = new THREE.MeshPhysicalMaterial({
+    color: '#1a130c',
+    roughness: .08,
+    metalness: .04,
+    clearcoat: 1.0,
+    clearcoatRoughness: .04,
+  });
   const glintMat = new THREE.MeshBasicMaterial({ color: '#f9f4e5' });
   const eyes: THREE.Group[]=[];
   const eyeGlints: THREE.Mesh[]=[];
   for (const side of [-1, 1]) {
-    const eye=new THREE.Group();eye.position.set(side*.063,.108,.054);head.add(eye);eyes.push(eye);
+    const eye=new THREE.Group();eye.name=side<0?'duck-left-eye':'duck-right-eye';eye.position.set(side*.063,.108,.054);head.add(eye);eyes.push(eye);
     ellipsoid(eye, eyeRingMat, [0, 0, 0],
       [.007, .017, .019]);
     ellipsoid(eye, eyeMat, [side * .004, .001, .002],
@@ -438,7 +538,13 @@ export function createDuck(kind: DuckKind): {
   torso.add(recordedNeck.mesh);
   const recordedMiddle=new THREE.Vector3(),recordedEnd=new THREE.Vector3(),recordedRoot=new THREE.Vector3();
   const skinCollar=new THREE.Vector3();
-  const footMat = material(p.foot);
+  const footMat = new THREE.MeshPhysicalMaterial({
+    color: p.foot,
+    roughness: .68,
+    metalness: .02,
+    clearcoat: .20,
+    clearcoatRoughness: .35,
+  });
   const legMat=legSurface(footMat.clone());
   const legs: THREE.Group[] = [];
   const feet: THREE.Group[] = [];
@@ -475,7 +581,11 @@ export function createDuck(kind: DuckKind): {
   let preenBlend = 0;
   let sleepBlend = 0;
   let jumpBlend=0;
-  let chaseBlend=0,feedingBlend=0,drinkBlend=0,restLean=0;
+  let chaseBlend=0,approachBlend=0,feedingBlend=0,drinkBlend=0,restLean=0,oneLegBlend=0;
+  const upperBillMesh = head.getObjectByName('duck-upper-bill') as THREE.Mesh;
+  const billMat = upperBillMesh ? (upperBillMesh.material as THREE.MeshStandardMaterial) : null;
+  const cleanBillColor = billMat ? billMat.color.clone() : new THREE.Color(0xffffff);
+  const mudColor = new THREE.Color('#3a291a');
   const wingAmounts=[0,0];let wingStroke=0,tailWag=0,gestureLean=0,gestureForward=0,gestureStretch=0,chestPreen=0,gestureBalance=0,rumpTurn=0;
   const feedingTip=new THREE.Vector3(),feedingHead=new THREE.Vector3(),feedingOffset=new THREE.Vector3();
   const feedingRotation=new THREE.Quaternion(),feedingParent=new THREE.Matrix4();
@@ -523,6 +633,15 @@ export function createDuck(kind: DuckKind): {
     const lateral=THREE.MathUtils.clamp(pose.accelerationSide??0,-3,3);
     const pitch=bodyPitch.step(forward*.06,dt),roll=bodyRoll.step(-lateral*.05,dt);
     const headLag=neckForward.step(-forward*.014,dt),headSide=neckSide.step(-lateral*.014,dt);
+    const wetness = THREE.MathUtils.clamp(pose.wetness ?? 0, 0, 1);
+    bodyMat.roughness = THREE.MathUtils.lerp(0.82, 0.48, wetness);
+    bodyMat.clearcoat = THREE.MathUtils.lerp(0, 0.45, wetness);
+    bodyMat.clearcoatRoughness = 0.15;
+    if (billMat) {
+      const mud = THREE.MathUtils.clamp(pose.mud ?? 0, 0, 1);
+      billMat.color.copy(cleanBillColor).lerp(mudColor, mud * 0.75);
+      billMat.roughness = THREE.MathUtils.lerp(0.54, 0.94, mud);
+    }
     // Smooth the posture and expression signals independently of the walking gait.
     const postureResponse = 1 - Math.exp(-dt * 6);
     const channels=gestureChannels(pose.gesture),gestureResponse=1-Math.exp(-dt*18);
@@ -546,6 +665,7 @@ export function createDuck(kind: DuckKind): {
     });
     tail.rotation.y=tailWag;tail.rotation.z=tailWag*.14;
     chaseBlend += ((state==='chase'?1:0)-chaseBlend)*postureResponse;
+    approachBlend += ((state==='approach'?1:0)-approachBlend)*postureResponse;
     feedingBlend+=(((state==='forage'||state==='eat'||state==='drink'||(state==='guard'&&pose.peck>0))?1:0)-feedingBlend)*postureResponse;
     drinkBlend+=((state==='drink'?1:0)-drinkBlend)*postureResponse;
     restLean+=((state==='rest'?.022:0)-restLean)*postureResponse;
@@ -586,33 +706,59 @@ export function createDuck(kind: DuckKind): {
     // A low or floating duck spreads into a fuller, longer horizontal body.
     const extension = THREE.MathUtils.clamp(bodyExtension.step(uprightBlend * (1 - swimBlend) * (1 - peckAmount * .6),dt),0,1);
     // The reference birds have a slender trunk beneath the folded plumage.
-    // Narrow both frontal width and chest depth without shortening the bird.
-    bodyShape.scale.set(.88*(1 - extension * .22)*DUCK_PROFILES[kind].bodyWidth, .94 + extension * .19 + gestureStretch*.08, .91*(1.06 - extension * .26));
+    // Fluff up in rest/sleep/preening, with soft living breathing.
+    const fluff = comfortBlend * 0.08 + (state === 'rest' ? 0.06 : 0);
+    const breathing = (state === 'sleep' || (state === 'rest' && pose.speed < 0.02) || (!moving && (state === 'guard' || state === 'wander') && pose.speed < 0.02)) ? Math.sin(time * 2.2 + BLINK_OFFSETS[kind]) * (state === 'sleep' || state === 'rest' ? 0.020 : 0.008) : 0;
+    const baseScaleY = .94 + extension * .19 + gestureStretch * .08;
+    const baseScaleZ = .91 * (1.06 - extension * .26);
+    bodyShape.scale.set(
+      .88 * (1 - extension * .22) * DUCK_PROFILES[kind].bodyWidth * (1 + fluff + breathing),
+      baseScaleY * ((state === 'rest' || state === 'preen') ? (1 + fluff * 0.35 + breathing * 0.25) : 1),
+      baseScaleZ * (1 + fluff * 0.65),
+    );
     foldedWings.forEach(wing=>wing.rotation.x=-.12*extension);
-    neckPivot.position.set(0, .302 * bodyShape.scale.y, .143 * bodyShape.scale.z);
+    neckPivot.position.set(0, .302 * baseScaleY, .143 * baseScaleZ);
+    const isTrotting = (pose.trot || (pose.speed > 0.95 && moving)) && !swim;
+    const trotHop = isTrotting ? Math.sin(phase * 2) * 0.005 : 0;
     torso.position.y = .604 + gestureStretch*.018 - extension * .035 - swimBlend * .44 - peckAmount * .015 -
-      low * (.025+.115*sleepBlend) - display * .008 - sleepBlend*.18 -crouch*.075 -landing*.045 -
+      low * (.025+.115*sleepBlend) - display * .008 - sleepBlend*.18 -crouch*.075 -landing*.045 + trotHop -
       Math.min(.016,pose.speed*.008)*(1-swimBlend)*(1-uprightBlend) + (moving || swim ? 0 : Math.sin(time * 1.6) * .004*(1-comfortBlend));
     const standingLean=.12*extension*(1-comfortBlend)*(1-gestureStretch);
     torso.rotation.x = standingLean + low * .30 + display * .065 + gestureLean +
       (moving ? -.025 :
         -swimBlend * .035 + restLean);
-    torso.position.x=gestureBalance*.3;
+    const standShift = (!moving && !swim && state !== 'sleep' && !pose.recordedBody) ? Math.sin(time * 0.8 + BLINK_OFFSETS[kind] * 3) * 0.003 : 0;
+    torso.position.x = gestureBalance * .3 + standShift;
     torso.rotation.z = gestureBalance;
     torso.rotation.y = rumpTurn;
     neckPivot.scale.setScalar(1);
     head.scale.setScalar(1);
     // During a sprint the skull reaches forward and down, rather than perching
     // above the end of the lowered neck. The same blend eases back out of chase.
-    head.position.set(headLook*.028*(1-comfortBlend),.440+chaseBlend*.035+gestureStretch*.04,.065+chaseBlend*.065);
+    const forwardRush = Math.max(chaseBlend, approachBlend * 0.65);
+    head.position.set(headLook*.028*(1-comfortBlend),.440+forwardRush*.035+gestureStretch*.04,.065+forwardRush*.065);
     // Reach forward in one streamlined line, without stacking two neck dips.
-    neckPivot.rotation.x = -standingLean + THREE.MathUtils.lerp(peckAmount * 2.42 + low * .70 + display * .69, 1.32, chaseBlend);
+    neckPivot.rotation.x = -standingLean + THREE.MathUtils.lerp(peckAmount * 2.42 + low * .70 + display * .69, 1.32, forwardRush);
     neckPivot.rotation.y = neckLook * THREE.MathUtils.lerp(.18,.04,THREE.MathUtils.smoothstep(peckAmount,.15,.45));
     neckPivot.rotation.z = tiltBlend * .26 * (1 - peckAmount);
-    head.rotation.x = THREE.MathUtils.lerp(peckAmount * -.22 - low * .75 - display * .14, -1.60, chaseBlend);
+    head.rotation.x = THREE.MathUtils.lerp(peckAmount * -.22 - low * .75 - display * .14, -1.60, forwardRush);
     head.rotation.y = headLook * .78 * (1-peckAmount*.85);
-    head.rotation.z = tiltBlend * .74 * (1 - peckAmount);
+    const lookBank = headLook * 0.08 * (1 - comfortBlend) * (1 - peckAmount);
+    head.rotation.z = tiltBlend * .74 * (1 - peckAmount) + lookBank;
     awakeHeadRotation.copy(torso.quaternion).multiply(neckPivot.quaternion).multiply(head.quaternion);
+    const snailMesh = group.getObjectByName('duck-snail');
+    if (snailMesh) {
+      if (pose.snail && pose.snail.progress < 0.99) {
+        snailMesh.visible = true;
+        const s = Math.max(0, 1 - Math.max(0, pose.snail.progress - 0.4) * 2);
+        snailMesh.scale.setScalar(s);
+        if (pose.snail.shaking) {
+          head.rotation.y += Math.sin(time * 36) * 0.14;
+        }
+      } else {
+        snailMesh.visible = false;
+      }
+    }
     // Fold the neck back towards a wing. Short strokes comb the feathers;
     // Sleeping holds a still supported head, without the preening rhythm.
     const side=kind==='brown'||kind==='drake'?-1:1;
@@ -663,8 +809,12 @@ export function createDuck(kind: DuckKind): {
       awakeHeadRotation.copy(parentRotation).multiply(head.quaternion).slerp(comfortHeadRotation,chestPreen);
       head.quaternion.copy(parentRotation.invert()).multiply(awakeHeadRotation);
     }
-    eyes.forEach(eye=>eye.scale.y=1-sleepBlend*.94);
-    eyeGlints.forEach(glint=>glint.visible=sleepBlend<.5);
+    const blinkOffset = BLINK_OFFSETS[kind];
+    const blinkCycle = (((time + blinkOffset) % 4.4) + 4.4) % 4.4;
+    const blink = blinkCycle < 0.14 ? Math.sin((blinkCycle / 0.14) * Math.PI) : 0;
+    const eyeClose = Math.max(sleepBlend, blink * (1 - sleepBlend));
+    eyes.forEach(eye => eye.scale.y = 1 - eyeClose * .94);
+    eyeGlints.forEach(glint => glint.visible = eyeClose < .5);
     // Water displacement belongs to the root, outside the torso animation.
     // Convert it back to model units so the neck absorbs it without moving the body.
     const waterCompensation = swim ? THREE.MathUtils.clamp(pose.waterBob??0,-.08,.08)*.94*swimBlend/group.scale.y : 0;
@@ -678,8 +828,10 @@ export function createDuck(kind: DuckKind): {
       steadyHeadRotation.copy(torso.quaternion).multiply(neckPivot.quaternion).multiply(head.quaternion);
 
       torso.position.y += Math.sin(phase * 2) * .017 * stride;
+      torso.position.x += Math.sin(phase) * .013 * stride;
       torso.rotation.x += Math.sin(phase) * .028 * stride + pitch;
-      torso.rotation.z += Math.sin(phase) * .024 * stride + roll;
+      torso.rotation.y += Math.cos(phase) * .032 * stride;
+      torso.rotation.z += Math.sin(phase) * .036 * stride + roll;
       if(swim){
         // Buoyant body rocks independently; the neck solves back to the steady
         // head captured above instead of carrying the skull along like a toy.
@@ -769,9 +921,15 @@ export function createDuck(kind: DuckKind): {
     }
     torso.updateMatrix();
     gait.update(dt,rootPosition,group.rotation.y,!airborne && swimBlend<.1 && sleepBlend<.1 && crouch===0,pose.groundHeight);
+    const isRestingStand = !!pose.oneLeg && state === 'rest' && (pose.speed ?? 0) < 0.03 && sleepBlend < 0.1 && !pose.gesture;
+    const restSide = kind === 'brown' || kind === 'drake' ? 0 : 1;
+    oneLegBlend += ((isRestingStand ? 1 : 0) - oneLegBlend) * Math.min(1, dt * 2.2);
+    const supportSide = restSide === 0 ? 1 : -1;
+    torso.position.x = THREE.MathUtils.lerp(torso.position.x, supportSide * 0.016, oneLegBlend);
     for (let i = 0; i < 2; i++) {
       const side = i === 0 ? -1 : 1;
-      const folded=Math.max(swimBlend,sleepBlend,jumpBlend*.8,crouch*.25);
+      const isTuckedLeg = i === restSide && oneLegBlend > 0.001;
+      const folded = Math.max(swimBlend, sleepBlend, jumpBlend * .8, crouch * .25, isTuckedLeg ? oneLegBlend : 0);
       legs[i].visible = swim || folded < .99;
       // Attach inside the feathered body, following its shape, bob and lean.
       // The hip sits higher inside the feathers. A low attachment forced the
@@ -781,6 +939,10 @@ export function createDuck(kind: DuckKind): {
       const step = pose.recordedFeet?.[i] ?? gait.feet[i];
       // Preserve the support foot's world position and heading as the body passes it.
       footLocal.copy(step.position); group.worldToLocal(footLocal);
+      const isStretchingLeg = pose.gesture?.kind === 'wingStretch' && i === (pose.gesture.side < 0 ? 0 : 1);
+      if (isStretchingLeg && channels.stretch > 0.001) {
+        footLocal.z -= 0.12 * channels.stretch;
+      }
       feet[i].position.copy(footLocal).sub(legs[i].position);
       feet[i].position.lerp(ankle.set(side*.009, -.085, .015), folded);
       feet[i].rotation.set((pose.recordedFeet?.[i].pitch??step.lift*.22)*(1-folded)+folded*.6,

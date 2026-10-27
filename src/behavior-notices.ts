@@ -1,13 +1,20 @@
 /** Korte kommentarer til nye aktiviteter; højst én aktuel besked pr. and. */
 import type {DuckKind,DuckState} from './types';
 
-const names:Record<DuckKind,string>={drake:'Hannen',buff:'Den lyse hun',brown:'Den brune hun',pied:'Den brogede hun'};
-const actions:Record<DuckState,string>={
+export const DUCK_NAMES: Record<DuckKind, string> = {
+  drake: 'Anders',
+  buff: 'Andemette',
+  brown: 'Andedorte',
+  pied: 'Andja',
+};
+const names: Record<DuckKind, string> = DUCK_NAMES;
+export const DUCK_ACTIONS: Record<DuckState, string> = {
  wander:'går en tur',notice:'får øje på foder',approach:'går hen til foderet',eat:'spiser',
  guard:'holder vagt',rest:'hviler sig',preen:'pudser fjer',sleep:'lægger sig til at sove',
  forage:'søger føde i græsset',drink:'drikker',chase:'jager insekter',retreat:'trækker sig lidt væk',
  swim:'svømmer',enter:'går i bad',exit:'går op af badet',
 };
+const actions = DUCK_ACTIONS;
 type Bird={id:string;kind:DuckKind;state:DuckState};
 const BEHAVIOR_QUIET_MS=15_000;
 export class BehaviorNotices{

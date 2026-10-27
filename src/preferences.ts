@@ -1,10 +1,10 @@
 import {getDaylight} from './daylight';
 export interface Preferences {
  weather:'live'|'sun'|'cloud'|'rain';timeMode:'live'|'manual'|'cycle';
- minutes:number|null;quality:'auto'|'low'|'high';autoFollow:boolean;sound:boolean;music:boolean;showBehavior:boolean;
+ minutes:number|null;quality:'auto'|'low'|'high';autoFollow:boolean;sound:boolean;music:boolean;showBehavior:boolean;showFps?:boolean;cap30Fps?:boolean;
 }
 export const PREFERENCES_KEY='ducktv.preferences.v1';
-export const DEFAULT_PREFERENCES:Preferences={weather:'live',timeMode:'live',minutes:null,quality:'auto',autoFollow:true,sound:false,music:true,showBehavior:false};
+export const DEFAULT_PREFERENCES:Preferences={weather:'live',timeMode:'live',minutes:null,quality:'auto',autoFollow:true,sound:false,music:true,showBehavior:false,showFps:false,cap30Fps:true};
 export function readPreferences(storage:Pick<Storage,'getItem'>):Preferences{
  const result={...DEFAULT_PREFERENCES};
  try{
@@ -18,6 +18,8 @@ export function readPreferences(storage:Pick<Storage,'getItem'>):Preferences{
   if(typeof value.sound==='boolean')result.sound=value.sound;
   if(typeof value.music==='boolean')result.music=value.music;
   if(typeof value.showBehavior==='boolean')result.showBehavior=value.showBehavior;
+  if(typeof value.showFps==='boolean')result.showFps=value.showFps;
+  if(typeof value.cap30Fps==='boolean')result.cap30Fps=value.cap30Fps;
  }catch{/* Unavailable storage or old/corrupt data must not prevent startup. */}
  return result;
 }

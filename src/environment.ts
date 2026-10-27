@@ -7,6 +7,7 @@ import { createNightSky } from './night-sky';
 import { createRainImpacts } from './rain-impacts';
 import { lawnTexture, lawnMarkMask } from './lawn-texture';
 import { createHedgeDetails } from './hedge';
+import { createContactShadows, type DuckShadowTarget } from './contact-shadows';
 
 type Weather = { cloud: number; wind: number; rain: number; isDay: boolean };
 type Ripple = { x: number; z: number; start: number; strength: number; line: THREE.LineLoop };
@@ -67,15 +68,17 @@ export function createEnvironment(scene: THREE.Scene): {
   ground: THREE.Mesh;
   update(time: number, dt: number): void;
   ripple(x: number, z: number, strength?: number): void;
+  splash(x: number, y: number, z: number, count?: number, speed?: number, spread?: number, options?: { vx?: number; vy?: number; vz?: number; directionAngle?: number; arcWidth?: number; upwardBias?: number; life?: number }): void;
   setWeather(weather: Weather): void;
   setDaylight(light: number, phase: number): void;
   setSkyDate(date:Date):void;
   setShelterDoor(closed:number):void;
+  updateContactShadows(ducks: readonly DuckShadowTarget[], groundHeight: (x: number, z: number) => number): void;
 } {
   const rand = random(75129);
   const shelter=createShelter(scene);
   const skyDay = new THREE.Color(0x9edaf0);
-  const skyOvercast = new THREE.Color(0xb9c8cc);
+  const skyOvercast = new THREE.Color(0x566572);
   const skyNight = new THREE.Color(0x182c49);
   scene.background = skyDay.clone();
   const fog = new THREE.Fog(skyDay.clone(), 19, 56);
@@ -85,12 +88,12 @@ export function createEnvironment(scene: THREE.Scene): {
   const nightSky=createNightSky(scene);
   nightSky.setDate(new Date());
 
-  const hemi = new THREE.HemisphereLight(0xdff6ff, 0x80a565, 2.15);
+  const hemi = new THREE.HemisphereLight(0xcce8ff, 0x628a42, 1.45);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xfff2d1, 2.6);
+  const sun = new THREE.DirectionalLight(0xfff5e0, 2.75);
   sun.position.set(-5, 10, 6);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(1024, 1024);
   sun.shadow.camera.left = -12;
   sun.shadow.camera.right = 12;
   sun.shadow.camera.top = 10;
@@ -141,13 +144,30 @@ export function createEnvironment(scene: THREE.Scene): {
   bladeShape.computeVertexNormals();
   bladeShape.scale(.28,1,.28);
   const grassCount = 4200;
+  const grassWindUniforms = { uTime: { value: 0 }, uWind: { value: 0.1 } };
+  const grassMat = new THREE.MeshStandardMaterial({ color: 0x5ea838, roughness: 0.72, side: THREE.DoubleSide, vertexColors: false });
+  grassMat.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = grassWindUniforms.uTime;
+    shader.uniforms.uWind = grassWindUniforms.uWind;
+    shader.vertexShader = `
+      uniform float uTime;
+      uniform float uWind;
+    ` + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>
+      float bend = transformed.y * 11.76;
+      transformed.x += sin(uTime * 2.2 + position.x * 2.0) * bend * uWind * 0.035;
+      transformed.z += cos(uTime * 1.8 + position.z * 2.5) * bend * uWind * 0.025;
+      `
+    );
+  };
   const grass = new THREE.InstancedMesh(
     bladeShape,
-    new THREE.MeshStandardMaterial({ color: 0x73b64d, roughness: 1, side: THREE.DoubleSide, vertexColors: false }),
+    grassMat,
     grassCount,
   );
   const grassDummy = new THREE.Object3D();
-  const grassInfo: Array<{ x: number; z: number; size: number; phase: number; yaw: number }> = [];
   const grassColor = new THREE.Color();
   for (let i = 0; i < grassCount; i++) {
     let x = 0;
@@ -159,7 +179,6 @@ export function createEnvironment(scene: THREE.Scene): {
     const nearCentre = Math.abs(x) < 7 && Math.abs(z) < 5;
     const size = (nearCentre ? 0.55 : 0.9) * (0.6 + rand() * 0.85);
     const yaw = rand() * TAU;
-    grassInfo.push({ x, z, size, phase: rand() * TAU, yaw });
     grassDummy.position.set(x, 0, z);
     grassDummy.rotation.set(0, yaw, 0);
     grassDummy.scale.setScalar(size);
@@ -169,13 +188,88 @@ export function createEnvironment(scene: THREE.Scene): {
     grass.setColorAt(i, grassColor);
   }
   grass.instanceMatrix.needsUpdate = true;
-  grass.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  grass.instanceMatrix.setUsage(THREE.StaticDrawUsage);
   grass.frustumCulled = false;
   scene.add(grass);
+
+  // Natural garden stepping stones (havefliser) leading from the bath exit shore into the lawn
+  const stoneMat = new THREE.MeshStandardMaterial({ color: '#88847c', roughness: 0.88 });
+  const stonePositions = [
+    { x: 1.54, z: -0.88, w: 0.38, d: 0.28, rot: 0.15 },
+    { x: 1.28, z: -0.62, w: 0.34, d: 0.26, rot: -0.22 },
+    { x: 1.06, z: -0.34, w: 0.36, d: 0.28, rot: 0.30 },
+  ];
+  for (const sp of stonePositions) {
+    const stone = new THREE.Mesh(new THREE.BoxGeometry(sp.w, 0.022, sp.d), stoneMat);
+    const gy = gardenGroundHeight(sp.x, sp.z);
+    stone.position.set(sp.x, gy + 0.011, sp.z);
+    stone.rotation.y = sp.rot;
+    stone.castShadow = true;
+    stone.receiveShadow = true;
+    scene.add(stone);
+  }
 
   const basin = new THREE.Group();
   basin.position.set(POND.x, 0, POND.z);
   basin.name = 'blue-shell-duck-bath';
+
+  // Patinated duck trail (nedtrådt sti mellem andehus og muslingebassin)
+  const pathMat = new THREE.MeshStandardMaterial({
+    color: 0x5a4f38, roughness: 0.98, transparent: true, opacity: 0.28, depthWrite: false,
+  });
+  const pathPoints = [
+    new THREE.Vector3(-3.2, 0, 0.2),
+    new THREE.Vector3(-2.2, 0, 0.1),
+    new THREE.Vector3(-1.2, 0, -0.05),
+    new THREE.Vector3(-0.2, 0, -0.15),
+    new THREE.Vector3(0.5, 0, -0.25),
+    new THREE.Vector3(1.06, 0, -0.34),
+  ];
+  const pathCurve = new THREE.CatmullRomCurve3(pathPoints);
+  const pathSteps = 32;
+  const pathGeo = new THREE.BufferGeometry();
+  const pathPos: number[] = [], pathUvs: number[] = [], pathInd: number[] = [];
+  for (let s = 0; s <= pathSteps; s++) {
+    const t = s / pathSteps;
+    const pt = pathCurve.getPoint(t);
+    const tan = pathCurve.getTangent(t);
+    const norm = new THREE.Vector3(-tan.z, 0, tan.x).normalize();
+    const halfWidth = 0.22 + 0.05 * Math.sin(t * Math.PI * 4);
+    const y0 = gardenGroundHeight(pt.x + norm.x * halfWidth, pt.z + norm.z * halfWidth) + 0.003;
+    const y1 = gardenGroundHeight(pt.x - norm.x * halfWidth, pt.z - norm.z * halfWidth) + 0.003;
+    pathPos.push(pt.x + norm.x * halfWidth, y0, pt.z + norm.z * halfWidth);
+    pathPos.push(pt.x - norm.x * halfWidth, y1, pt.z - norm.z * halfWidth);
+    pathUvs.push(0, t, 1, t);
+    if (s < pathSteps) {
+      const idx = s * 2;
+      pathInd.push(idx, idx + 1, idx + 2, idx + 2, idx + 1, idx + 3);
+    }
+  }
+  pathGeo.setAttribute('position', new THREE.Float32BufferAttribute(pathPos, 3));
+  pathGeo.setAttribute('uv', new THREE.Float32BufferAttribute(pathUvs, 2));
+  pathGeo.setIndex(pathInd);
+  pathGeo.computeVertexNormals();
+  const duckPathMesh = new THREE.Mesh(pathGeo, pathMat);
+  duckPathMesh.name = 'worn-duck-path';
+  duckPathMesh.receiveShadow = true;
+  scene.add(duckPathMesh);
+
+  // Sparkling morning dew droplets (morgendug på græsset)
+  const dewMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 });
+  const dewMesh = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.006), dewMat, 120);
+  dewMesh.name = 'morning-dew-sparkles';
+  const dewDummy = new THREE.Object3D();
+  for (let i = 0; i < 120; i++) {
+    const gx = (rand() - 0.5) * 8.5;
+    const gz = (rand() - 0.5) * 6.5;
+    const gy = gardenGroundHeight(gx, gz) + 0.045 + rand() * 0.035;
+    dewDummy.position.set(gx, gy, gz);
+    dewDummy.rotation.set(rand() * TAU, rand() * TAU, 0);
+    dewDummy.updateMatrix();
+    dewMesh.setMatrixAt(i, dewDummy.matrix);
+  }
+  dewMesh.instanceMatrix.needsUpdate = true;
+  scene.add(dewMesh);
   scene.add(basin);
   const plastic = new THREE.MeshPhysicalMaterial({
     color: 0x078fe3, roughness: 0.28, metalness: 0, clearcoat: 0.7,
@@ -253,10 +347,9 @@ export function createEnvironment(scene: THREE.Scene): {
   waterGeometry.setAttribute('position', new THREE.Float32BufferAttribute(waterPositions, 3));
   waterGeometry.setIndex(waterIndices);
   waterGeometry.computeVertexNormals();
-  const waterMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0x68cdef, roughness: 0.18, metalness: 0.04, transparent: true,
-    opacity: 0.78, clearcoat: 1, clearcoatRoughness: 0.08,
-    side: THREE.DoubleSide, depthWrite: false,
+  const waterMaterial = new THREE.MeshStandardMaterial({
+    color: 0x2eaedb, roughness: 0.04, metalness: 0.05, transparent: true,
+    opacity: 0.85, side: THREE.DoubleSide, depthWrite: false,
   });
   const water = new THREE.Mesh(waterGeometry, waterMaterial);
   water.name = 'duck-bath-water';
@@ -264,7 +357,7 @@ export function createEnvironment(scene: THREE.Scene): {
   water.renderOrder = 1;
   basin.add(water);
 
-  const ripplePool = Array.from({ length: 12 }, makeRippleLine);
+  const ripplePool = Array.from({ length: 24 }, makeRippleLine);
   ripplePool.forEach(line => basin.add(line));
   const activeRipples: Ripple[] = [];
   let rippleCursor = 0;
@@ -310,10 +403,12 @@ export function createEnvironment(scene: THREE.Scene): {
   hedges.receiveShadow = true;
   scene.add(hedges);
   hedges.name='hedge-core';
-  scene.add(createHedgeDetails(hedgePositions,hedgeMat));
+  const hedgeDetails = createHedgeDetails(hedgePositions, hedgeMat);
+  scene.add(hedgeDetails);
 
   // Small daisies and buttercups gather mainly near the garden edges.
   const stemGeo = new THREE.CylinderGeometry(0.008, 0.012, 0.19, 4);
+  stemGeo.translate(0, 0.095, 0); // Base sits at ground level (y = 0), top at y = 0.19
   const petalGeo = new THREE.SphereGeometry(0.035, 6, 4);
   const centreGeo = new THREE.SphereGeometry(0.026, 6, 4);
   const stemMat = new THREE.MeshLambertMaterial({ color: 0x367a36 });
@@ -324,7 +419,38 @@ export function createEnvironment(scene: THREE.Scene): {
   const stems = new THREE.InstancedMesh(stemGeo, stemMat, flowerCount);
   const petals = new THREE.InstancedMesh(petalGeo, petalMat, flowerCount * 5);
   const centres = new THREE.InstancedMesh(centreGeo, centreMat, flowerCount);
-  const flowerDummy = new THREE.Object3D();
+
+  // Rigid hierarchical flower assembly: stem base stays anchored at y=0,
+  // head and petals sit directly at stem tip and sway 100% in phase.
+  const flowerRoot = new THREE.Object3D();
+  const flowerStemObj = new THREE.Object3D();
+  const flowerHead = new THREE.Object3D();
+  const flowerCentreObj = new THREE.Object3D();
+  const flowerPetalObjs: THREE.Object3D[] = [];
+
+  flowerRoot.add(flowerStemObj);
+  flowerRoot.add(flowerHead);
+  flowerHead.add(flowerCentreObj);
+
+  flowerHead.position.set(0, 0.19, 0);
+  flowerCentreObj.position.set(0, 0.018, 0);
+
+  const petalAxes: THREE.Vector3[] = [];
+  const petalCos: number[] = [];
+  const petalSin: number[] = [];
+  for (let p = 0; p < 5; p++) {
+    const angle = (p / 5) * TAU;
+    petalAxes.push(new THREE.Vector3(-Math.sin(angle), 0, Math.cos(angle)).normalize());
+    petalCos.push(Math.cos(angle) * 0.041);
+    petalSin.push(Math.sin(angle) * 0.041);
+    const petalObj = new THREE.Object3D();
+    petalObj.position.set(petalCos[p], 0.014, petalSin[p]);
+    petalObj.scale.set(1, 0.45, 1);
+    flowerHead.add(petalObj);
+    flowerPetalObjs.push(petalObj);
+  }
+
+  const flowerInfo: Array<{ x: number; z: number; size: number; phase: number }> = [];
   for (let i = 0; i < 55; i++) {
     let x = 0;
     let z = 0;
@@ -333,31 +459,112 @@ export function createEnvironment(scene: THREE.Scene): {
       z = GARDEN.minZ - 1 + rand() * (GARDEN.maxZ - GARDEN.minZ + 2);
     } while ((Math.abs(x) < 4.3 && Math.abs(z) < 2.7) || Math.hypot(x - POND.x, z - POND.z) < POND.radius + 0.6);
     const size = 0.75 + rand() * 0.7;
-    flowerDummy.position.set(x, 0.095 * size, z);
-    flowerDummy.rotation.set(0, 0, 0);
-    flowerDummy.scale.setScalar(size);
-    flowerDummy.updateMatrix();
-    stems.setMatrixAt(i, flowerDummy.matrix);
+    const phase = rand() * Math.PI * 2;
+    flowerInfo.push({ x, z, size, phase });
+
+    flowerRoot.position.set(x, 0, z);
+    flowerRoot.rotation.set(0, 0, 0);
+    flowerRoot.scale.setScalar(size);
+    flowerHead.rotation.set(0, 0, 0);
+    flowerRoot.updateMatrixWorld(true);
+
+    stems.setMatrixAt(i, flowerStemObj.matrixWorld);
+    centres.setMatrixAt(i, flowerCentreObj.matrixWorld);
     for (let p = 0; p < 5; p++) {
-      const angle = (p / 5) * TAU;
-      flowerDummy.position.set(x + Math.cos(angle) * 0.041 * size, 0.204 * size, z + Math.sin(angle) * 0.041 * size);
-      flowerDummy.scale.set(size, size * 0.45, size);
-      flowerDummy.updateMatrix();
-      petals.setMatrixAt(i * 5 + p, flowerDummy.matrix);
+      petals.setMatrixAt(i * 5 + p, flowerPetalObjs[p].matrixWorld);
       petals.setColorAt(i * 5 + p, new THREE.Color(petalColors[i % petalColors.length]));
     }
-    flowerDummy.position.set(x, 0.21 * size, z);
-    flowerDummy.scale.setScalar(size);
-    flowerDummy.updateMatrix();
-    centres.setMatrixAt(i, flowerDummy.matrix);
   }
   stems.instanceMatrix.needsUpdate = true;
+  stems.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   petals.instanceMatrix.needsUpdate = true;
+  petals.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   centres.instanceMatrix.needsUpdate = true;
+  centres.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   stems.frustumCulled = false;
   petals.frustumCulled = false;
   centres.frustumCulled = false;
   scene.add(stems, petals, centres);
+
+  // Visne efterårsblade der danser og flyver hen over haven i blæsevejr
+  const flyingLeafGeo = new THREE.BufferGeometry();
+  flyingLeafGeo.setAttribute('position', new THREE.Float32BufferAttribute([
+    0, 0, 0, -0.032, 0.038, 0, 0, 0.046, 0.012,
+    -0.032, 0.038, 0, 0, 0.086, 0, 0, 0.046, 0.012,
+    0, 0, 0, 0, 0.046, 0.012, 0.032, 0.038, 0,
+    0.032, 0.038, 0, 0, 0.086, 0, 0, 0.046, 0.012,
+  ], 3));
+  flyingLeafGeo.computeVertexNormals();
+  const flyingLeafMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.88,
+    side: THREE.DoubleSide,
+  });
+  const flyingLeafCount = 42;
+  const flyingLeaves = new THREE.InstancedMesh(flyingLeafGeo, flyingLeafMat, flyingLeafCount);
+  flyingLeaves.castShadow = true;
+  flyingLeaves.name = 'wind-autumn-leaves';
+  scene.add(flyingLeaves);
+
+  const leafPalette = ['#b8642a', '#c97834', '#9a471c', '#633114', '#d6943a', '#783816'];
+  const leafDummy = new THREE.Object3D();
+  const leafParticles = Array.from({ length: flyingLeafCount }, (_, i) => {
+    flyingLeaves.setColorAt(i, new THREE.Color(leafPalette[i % leafPalette.length]));
+    return {
+      x: -5 + rand() * 10,
+      y: 0.3 + rand() * 2.2,
+      z: -4 + rand() * 8,
+      vx: 0.8 + rand() * 0.9,
+      vy: -0.16 - rand() * 0.22,
+      rotX: rand() * Math.PI * 2,
+      rotY: rand() * Math.PI * 2,
+      rotZ: rand() * Math.PI * 2,
+      rotSpeedX: 2.5 + rand() * 4,
+      rotSpeedY: 2 + rand() * 3,
+      scale: 0.65 + rand() * 0.55,
+      phase: rand() * Math.PI * 2,
+    };
+  });
+  if (flyingLeaves.instanceColor) flyingLeaves.instanceColor.needsUpdate = true;
+
+  // Nedfaldne efterårsblade på græsplænen langs hækken og andehuset
+  const fallenLeafCount = 140;
+  const fallenLeaves = new THREE.InstancedMesh(flyingLeafGeo, flyingLeafMat, fallenLeafCount);
+  fallenLeaves.name = 'fallen-autumn-leaves';
+  fallenLeaves.receiveShadow = true;
+  scene.add(fallenLeaves);
+
+  const fallenLeafPalette = ['#7a3512', '#9c4819', '#58270e', '#ba6b29', '#46200a', '#853e16', '#a85a21'];
+  const leafDummyFallen = new THREE.Object3D();
+  for (let i = 0; i < fallenLeafCount; i++) {
+    let lx = 0, lz = 0;
+    const roll = rand();
+    if (roll < 0.6) {
+      const side = Math.floor(rand() * 4);
+      if (side === 0) { lx = GARDEN.minX + rand() * (GARDEN.maxX - GARDEN.minX); lz = GARDEN.minZ + 0.2 + rand() * 1.4; }
+      else if (side === 1) { lx = GARDEN.minX + rand() * (GARDEN.maxX - GARDEN.minX); lz = GARDEN.maxZ - 0.2 - rand() * 1.4; }
+      else if (side === 2) { lx = GARDEN.minX + 0.2 + rand() * 1.4; lz = GARDEN.minZ + rand() * (GARDEN.maxZ - GARDEN.minZ); }
+      else { lx = GARDEN.maxX - 0.2 - rand() * 1.4; lz = GARDEN.minZ + rand() * (GARDEN.maxZ - GARDEN.minZ); }
+    } else if (roll < 0.85) {
+      lx = SHELTER.minX - 0.6 + rand() * (SHELTER.maxX - SHELTER.minX + 1.2);
+      lz = SHELTER.back - 0.6 + rand() * (SHELTER.front - SHELTER.back + 1.2);
+    } else {
+      lx = GARDEN.minX + 1 + rand() * (GARDEN.maxX - GARDEN.minX - 2);
+      lz = GARDEN.minZ + 1 + rand() * (GARDEN.maxZ - GARDEN.minZ - 2);
+    }
+    if (Math.hypot(lx - POND.x, lz - POND.z) < POND.radius + 0.35) {
+      lx += (lx > POND.x ? 1 : -1) * 1.2;
+    }
+    const gy = gardenGroundHeight(lx, lz);
+    leafDummyFallen.position.set(lx, gy + 0.005 + rand() * 0.005, lz);
+    leafDummyFallen.rotation.set(-Math.PI / 2 + (rand() - 0.5) * 0.25, (rand() - 0.5) * 0.25, rand() * Math.PI * 2);
+    leafDummyFallen.scale.setScalar(0.7 + rand() * 0.55);
+    leafDummyFallen.updateMatrix();
+    fallenLeaves.setMatrixAt(i, leafDummyFallen.matrix);
+    fallenLeaves.setColorAt(i, new THREE.Color(fallenLeafPalette[i % fallenLeafPalette.length]));
+  }
+  fallenLeaves.instanceMatrix.needsUpdate = true;
+  if (fallenLeaves.instanceColor) fallenLeaves.instanceColor.needsUpdate = true;
 
   // Weather supplies the cloud tint; ground bounce must not turn undersides green.
   const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.77, depthWrite: false });
@@ -399,6 +606,7 @@ export function createEnvironment(scene: THREE.Scene): {
   rain.frustumCulled = false;
   scene.add(rain);
   const rainImpacts=createRainImpacts(scene);
+  const contactShadows=createContactShadows(scene);
   const waterContains=(x:number,z:number)=>{
     const dx=x-POND.x,dz=z-POND.z;
     return Math.hypot(dx,dz)<shellRadius(Math.atan2(dz,dx),1.40);
@@ -406,6 +614,7 @@ export function createEnvironment(scene: THREE.Scene): {
 
   let weather: Weather = { cloud: 10, wind: 1.5, rain: 0, isDay: true };
   let daylight = 1;
+  let solarPhase = 0.5;
   let elapsed = 0;
   let weatherInitialized = false;
   const targetSky = skyDay.clone();
@@ -424,17 +633,30 @@ export function createEnvironment(scene: THREE.Scene): {
       isDay: next.isDay,
     };
     const cloudiness = weather.cloud / 100;
-    sky.set(daylight,cloudiness,sun.position);
-    targetSky.copy(skyDay).lerp(skyOvercast,cloudiness*.8).lerp(skyNight,1-daylight);
-    targetHemi = THREE.MathUtils.lerp(.32,2.15-cloudiness*.55,daylight);
-    targetSun = THREE.MathUtils.lerp(.08,2.6-cloudiness*2.35,daylight);
-    targetSunColor.set(daylight>.8 ? 0xfff2d1 : daylight>.1 ? 0xffbf87 : 0xa8bde2);
-    targetCloudOpacity = weather.isDay ? 0.7 + cloudiness * 0.2 : 0.36;
-    targetCloudColor.set(0xffffff).lerp(new THREE.Color(0x566474),Math.min(.9,cloudiness*.45+Math.min(1,weather.rain/2)*.5));
-    targetCloudColor.lerp(new THREE.Color(0x404953),1-daylight);
-    targetWaterColor.set(weather.isDay ? 0x68cdef : 0x477b9f);
+    const rainFactor = Math.min(1, weather.rain / 2);
+    sky.set(daylight, cloudiness, sun.position, rainFactor);
+    targetSky.copy(skyDay).lerp(skyOvercast, Math.min(1, cloudiness * 0.75 + rainFactor * 0.35)).lerp(skyNight, 1 - daylight);
+    // Overcast diffuse skylight wraps around garden & ducks evenly, keeping them crisp and colorful
+    const baseHemi = 1.62 - cloudiness * 0.12 + rainFactor * 0.12;
+    targetHemi = THREE.MathUtils.lerp(.30, baseHemi, daylight);
+    // Direct sun is softened and attenuated during clouds & rain
+    targetSun = THREE.MathUtils.lerp(.08, Math.max(0.18, (2.75 - cloudiness * 2.25) * (1 - rainFactor * 0.75)), daylight);
+    targetSunColor.set(daylight > .8 ? 0xfff5e0 : daylight > .1 ? 0xffc48e : 0xa8bde2);
+    targetCloudOpacity = THREE.MathUtils.lerp(0.22, 0.72 + cloudiness * 0.22, daylight);
+    targetCloudColor.set(0xffffff).lerp(new THREE.Color(0x4a5866), Math.min(0.92, cloudiness * 0.45 + rainFactor * 0.5));
+    targetCloudColor.lerp(new THREE.Color(0x121822), 1 - daylight);
+    const upperCloudColor = new THREE.Color(0xffffff).lerp(new THREE.Color(0x9cb2c8), Math.min(1, cloudiness * 0.5 + rainFactor * 0.45)).lerp(new THREE.Color(0x151d28), 1 - daylight);
+    const lowerCloudColor = new THREE.Color(0xc0d0e0).lerp(new THREE.Color(0x35404d), Math.min(1, cloudiness * 0.7 + rainFactor * 0.5)).lerp(new THREE.Color(0x0a0f16), 1 - daylight);
+    for (let i = 0; i < cloudParts.length; i++) {
+      const part = cloudParts[i];
+      const relY = THREE.MathUtils.clamp((part.y - 8.5) / 4.5, 0, 1);
+      const col = lowerCloudColor.clone().lerp(upperCloudColor, relY);
+      clouds.setColorAt(i, col);
+    }
+    if (clouds.instanceColor) clouds.instanceColor.needsUpdate = true;
+    targetWaterColor.set(weather.isDay ? 0x2eaedb : 0x245b7a);
     rain.visible = weather.rain > 0;
-    rainGeometry.setDrawRange(0,Math.min(rainCount,Math.round(160+weather.rain*320))*2);
+    rainGeometry.setDrawRange(0, Math.min(rainCount, Math.round(160 + weather.rain * 320)) * 2);
     if (!weatherInitialized) {
       (scene.background as THREE.Color).copy(targetSky);
       fog.color.copy(targetSky);
@@ -445,7 +667,7 @@ export function createEnvironment(scene: THREE.Scene): {
       cloudMat.color.copy(targetCloudColor);
       waterMaterial.color.copy(targetWaterColor);
       weatherInitialized = true;
-      sky.update(1);
+      sky.update(1, 0);
     }
   }
 
@@ -459,6 +681,124 @@ export function createEnvironment(scene: THREE.Scene): {
     line.visible = true;
   }
 
+  function createDropletTexture(): THREE.Texture {
+    if (typeof document === 'undefined') {
+      const size = 8;
+      const data = new Uint8Array(size * size * 4);
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const dx = (x + 0.5 - size / 2) / (size / 2);
+          const dy = (y + 0.5 - size / 2) / (size / 2);
+          const d = Math.hypot(dx, dy);
+          const a = Math.max(0, Math.min(255, Math.floor((1 - d) * 255)));
+          const idx = (y * size + x) * 4;
+          data[idx] = 230; data[idx + 1] = 245; data[idx + 2] = 255;
+          data[idx + 3] = d <= 1 ? a : 0;
+        }
+      }
+      const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+      texture.needsUpdate = true;
+      return texture;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d')!;
+    const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    grad.addColorStop(0.35, 'rgba(220, 245, 255, 0.95)');
+    grad.addColorStop(0.7, 'rgba(170, 225, 250, 0.45)');
+    grad.addColorStop(1, 'rgba(140, 210, 245, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 32, 32);
+    const texture = new THREE.CanvasTexture(canvas);
+    return texture;
+  }
+
+  // Dynamiske vandstænk og dråber ved plask, dyk og fjer-ryst
+  const splashMax = 320;
+  const splashPositions = new Float32Array(splashMax * 3);
+  const splashColors = new Float32Array(splashMax * 3);
+  const splashGeo = new THREE.BufferGeometry();
+  splashGeo.setAttribute('position', new THREE.BufferAttribute(splashPositions, 3));
+  splashGeo.setAttribute('color', new THREE.BufferAttribute(splashColors, 3));
+  const splashMat = new THREE.PointsMaterial({
+    size: 0.020, // Realistisk fin dråbestørrelse i stedet for store klumper
+    map: createDropletTexture(),
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false,
+    blending: THREE.NormalBlending,
+  });
+  const splashPoints = new THREE.Points(splashGeo, splashMat);
+  splashPoints.name = 'pond-water-splashes';
+  splashPoints.frustumCulled = false;
+  scene.add(splashPoints);
+
+  interface SplashDrop {
+    x: number;
+    y: number;
+    z: number;
+    vx: number;
+    vy: number;
+    vz: number;
+    age: number;
+    life: number;
+    active: boolean;
+  }
+  const splashPool: SplashDrop[] = Array.from({ length: splashMax }, () => ({
+    x: 0, y: -10, z: 0, vx: 0, vy: 0, vz: 0, age: 1, life: 1, active: false,
+  }));
+  let splashCursor = 0;
+
+  function splash(
+    x: number,
+    y: number,
+    z: number,
+    count = 14,
+    speed = 1.2,
+    spread = 0.45,
+    options?: {
+      vx?: number;
+      vy?: number;
+      vz?: number;
+      directionAngle?: number;
+      arcWidth?: number;
+      upwardBias?: number;
+      life?: number;
+    }
+  ): void {
+    const baseVx = options?.vx ?? 0;
+    const baseVz = options?.vz ?? 0;
+    const upwardBias = options?.upwardBias ?? 1.0;
+    const hasDirection = options?.directionAngle !== undefined;
+    const dirAngle = options?.directionAngle ?? 0;
+    const arc = options?.arcWidth ?? Math.PI * 0.6;
+
+    for (let c = 0; c < count; c++) {
+      const drop = splashPool[splashCursor];
+      splashCursor = (splashCursor + 1) % splashMax;
+
+      const angle = hasDirection
+        ? dirAngle + (rand() - 0.5) * arc
+        : (c / count) * TAU + (rand() - 0.5) * 0.6;
+
+      const radialSpeed = (0.35 + rand() * 0.65) * speed * spread;
+      drop.x = x + (rand() - 0.5) * 0.03;
+      drop.y = y + (rand() - 0.5) * 0.02;
+      drop.z = z + (rand() - 0.5) * 0.03;
+
+      drop.vx = Math.cos(angle) * radialSpeed + baseVx * 0.55;
+      drop.vy = (0.22 + rand() * 0.85) * speed * upwardBias + (options?.vy ?? 0) * 0.4;
+      drop.vz = Math.sin(angle) * radialSpeed + baseVz * 0.55;
+
+      drop.age = 0;
+      drop.life = options?.life ?? (0.22 + rand() * 0.22);
+      drop.active = true;
+    }
+  }
+
   function update(time: number, dt: number): void {
     if (time < elapsed) {
       activeRipples.forEach(active => { active.line.visible = false; });
@@ -466,7 +806,7 @@ export function createEnvironment(scene: THREE.Scene): {
     }
     elapsed = time;
     const weatherBlend = 1 - Math.exp(-Math.max(0, dt) * 1.3);
-    sky.update(weatherBlend);
+    sky.update(weatherBlend, time);
     (scene.background as THREE.Color).lerp(targetSky, weatherBlend);
     fog.color.copy(scene.background as THREE.Color);
     hemi.intensity = THREE.MathUtils.lerp(hemi.intensity, targetHemi, weatherBlend);
@@ -478,16 +818,95 @@ export function createEnvironment(scene: THREE.Scene): {
     waterMaterial.color.lerp(targetWaterColor, weatherBlend);
     nightSky.update(weather.cloud,weatherBlend);
     const wind = Math.min(weather.wind, 20);
+    hedgeDetails.update(time, dt, wind);
     const sway = Math.min(wind / 15, 0.55);
-    for (let i = 0; i < grassCount; i++) {
-      const info = grassInfo[i];
-      grassDummy.position.set(info.x, 0, info.z);
-      grassDummy.rotation.set(0.02 + sway * Math.sin(time * (1.1 + wind * 0.15) + info.phase), info.yaw, sway * 0.25 * Math.cos(time * 1.5 + info.phase));
-      grassDummy.scale.setScalar(info.size);
-      grassDummy.updateMatrix();
-      grass.setMatrixAt(i, grassDummy.matrix);
+    grassWindUniforms.uTime.value = time;
+    grassWindUniforms.uWind.value = sway;
+    const morningDew = daylight > 0.05 ? THREE.MathUtils.clamp((0.35 - solarPhase) / 0.35, 0, 1) * Math.min(1, daylight * 1.8) : 0;
+    dewMesh.visible = morningDew > 0.04;
+    dewMat.opacity = morningDew * 0.75;
+    (ground.material as THREE.MeshStandardMaterial).roughness = THREE.MathUtils.lerp(0.95, 0.70, morningDew);
+    (grass.material as THREE.MeshStandardMaterial).roughness = THREE.MathUtils.lerp(0.72, 0.42, morningDew);
+
+    // Blomster svajer i vinden - stængel og blomsterhoved er 100% fasesynkrone,
+    // og kronbladene blafrer og folder sig organisk sammen fra bunden af hovedet i vindstød.
+    const flowerSway = Math.min(wind / 14, 0.35);
+    const windLean = -Math.min(wind / 20, 0.20);
+    for (let i = 0; i < 55; i++) {
+      const fInfo = flowerInfo[i];
+      const gust = Math.sin(time * (1.6 + wind * 0.14) + fInfo.phase);
+      const crossGust = Math.cos(time * (1.2 + wind * 0.09) + fInfo.phase * 1.3);
+      const tiltZ = windLean - flowerSway * (0.55 + 0.45 * gust);
+      const tiltX = flowerSway * 0.28 * crossGust;
+
+      flowerRoot.position.set(fInfo.x, 0, fInfo.z);
+      flowerRoot.rotation.set(tiltX, 0, tiltZ);
+      flowerRoot.scale.setScalar(fInfo.size);
+      flowerHead.rotation.set(tiltX * 0.22, 0, tiltZ * 0.22);
+
+      // Kronblade folder sig let sammen fra bunden af blomsterhovedet under vindpres,
+      // med asynkron, kaotisk blafren på hvert enkelt blad.
+      const bendStrength = Math.hypot(tiltZ, tiltX);
+      for (let p = 0; p < 5; p++) {
+        const petalSeed = fInfo.phase * 3.7 + p * 1.57;
+        const flutter = Math.sin(time * (6.5 + wind * 0.9) + petalSeed) * 0.08 * Math.min(wind / 6, 1);
+        const baseFold = (bendStrength / 0.42) * (0.24 + 0.20 * Math.sin(time * 3.1 + petalSeed));
+        const phi = Math.max(0, Math.min(0.68, baseFold + flutter));
+        const cosPhi = Math.cos(phi);
+        const sinPhi = Math.sin(phi);
+
+        const petalObj = flowerPetalObjs[p];
+        petalObj.position.set(petalCos[p] * cosPhi, 0.014 + 0.041 * sinPhi, petalSin[p] * cosPhi);
+        petalObj.quaternion.setFromAxisAngle(petalAxes[p], phi);
+      }
+
+      flowerRoot.updateMatrixWorld(true);
+
+      stems.setMatrixAt(i, flowerStemObj.matrixWorld);
+      centres.setMatrixAt(i, flowerCentreObj.matrixWorld);
+      for (let p = 0; p < 5; p++) {
+        petals.setMatrixAt(i * 5 + p, flowerPetalObjs[p].matrixWorld);
+      }
     }
-    grass.instanceMatrix.needsUpdate = true;
+    stems.instanceMatrix.needsUpdate = true;
+    petals.instanceMatrix.needsUpdate = true;
+    centres.instanceMatrix.needsUpdate = true;
+
+    // Flyvende visne blade kræver mærkbar blæst/vindstød for at løfte sig fra jorden (fra ca. 5.5-6 m/s).
+    // Ved let brise (som f.eks. 4 m/s) fyger blade ikke rundt; haven er rolig.
+    const activeLeafCount = Math.floor(THREE.MathUtils.clamp((weather.wind - 5.5) * 4.5, 0, flyingLeafCount));
+    flyingLeaves.visible = activeLeafCount > 0;
+    if (flyingLeaves.visible) {
+      const leafSpeed = 0.5 + (weather.wind - 5.0) * 0.45;
+      for (let i = 0; i < flyingLeafCount; i++) {
+        if (i >= activeLeafCount) {
+          leafDummy.position.set(0, -10, 0);
+          leafDummy.scale.setScalar(0);
+          leafDummy.updateMatrix();
+          flyingLeaves.setMatrixAt(i, leafDummy.matrix);
+          continue;
+        }
+        const lp = leafParticles[i];
+        lp.x += dt * (leafSpeed * lp.vx + Math.sin(time * 2.5 + lp.phase) * 0.25);
+        lp.z += dt * (leafSpeed * 0.25 + Math.cos(time * 2.0 + lp.phase) * 0.35);
+        lp.y += dt * (lp.vy + Math.sin(time * 3.2 + lp.phase) * 0.18);
+        lp.rotX += dt * lp.rotSpeedX * 0.7;
+        lp.rotY += dt * lp.rotSpeedY * 0.7;
+
+        const groundY = gardenGroundHeight(lp.x, lp.z);
+        if (lp.x > GARDEN.maxX + 1.2 || lp.z > GARDEN.maxZ + 1.2 || lp.y < groundY + 0.015) {
+          lp.x = GARDEN.minX - 0.8 - (rand() * 2);
+          lp.z = GARDEN.minZ - 1 + rand() * (GARDEN.maxZ - GARDEN.minZ + 2);
+          lp.y = 0.6 + rand() * 1.8;
+        }
+        leafDummy.position.set(lp.x, lp.y, lp.z);
+        leafDummy.rotation.set(lp.rotX, lp.rotY, lp.rotZ);
+        leafDummy.scale.setScalar(lp.scale);
+        leafDummy.updateMatrix();
+        flyingLeaves.setMatrixAt(i, leafDummy.matrix);
+      }
+      flyingLeaves.instanceMatrix.needsUpdate = true;
+    }
 
     cloudParts.forEach((part, i) => {
       const centre = ((part.cluster + 48 + time * part.speed) % 96 + 96) % 96 - 48;
@@ -513,7 +932,7 @@ export function createEnvironment(scene: THREE.Scene): {
         const distance = Math.hypot(x - active.x, z - active.z);
         const wavefront = age * 0.65;
         const envelope = Math.exp(-((distance - wavefront) ** 2) / 0.035) * (1 - age / 2.3);
-        y += 0.017 * active.strength * envelope * Math.sin((distance - wavefront) * 28);
+        y += 0.024 * active.strength * envelope * Math.sin((distance - wavefront) * 26);
       }
       positions.setY(i, y);
     }
@@ -532,13 +951,55 @@ export function createEnvironment(scene: THREE.Scene): {
       const linePositions = active.line.geometry.getAttribute('position') as THREE.BufferAttribute;
       for (let j = 0; j < 64; j++) {
         const a = (j / 64) * TAU;
-        linePositions.setXYZ(j, active.x + Math.cos(a) * radius, POND.waterY + 0.013, active.z + Math.sin(a) * radius);
+        linePositions.setXYZ(j, active.x + Math.cos(a) * radius, POND.waterY + 0.003 + 0.008 * active.strength * (1 - age / 2.2), active.z + Math.sin(a) * radius);
       }
       linePositions.needsUpdate = true;
       const material = active.line.material as THREE.LineBasicMaterial;
-      material.opacity = Math.max(0, 0.46 * (1 - age / 2.2) * active.strength);
+      material.opacity = Math.max(0, 0.70 * (1 - age / 2.2) * active.strength);
       active.line.visible = radius + Math.hypot(active.x, active.z) < 1.43;
     }
+
+    let activeSplashes = 0;
+    const splashPosAttr = splashGeo.getAttribute('position') as THREE.BufferAttribute;
+    const splashColAttr = splashGeo.getAttribute('color') as THREE.BufferAttribute;
+    for (let i = 0; i < splashMax; i++) {
+      const drop = splashPool[i];
+      if (!drop.active) {
+        splashPositions[i * 3 + 1] = -10;
+        continue;
+      }
+      drop.age += dt;
+      if (drop.age >= drop.life) {
+        drop.active = false;
+        splashPositions[i * 3 + 1] = -10;
+        continue;
+      }
+      const drag = Math.exp(-4.5 * dt);
+      drop.vx *= drag;
+      drop.vz *= drag;
+      drop.x += drop.vx * dt;
+      drop.y += drop.vy * dt;
+      drop.z += drop.vz * dt;
+      drop.vy -= 9.5 * dt;
+      const groundAtDrop = waterContains(drop.x, drop.z) ? POND.waterY : gardenGroundHeight(drop.x, drop.z);
+      if (drop.y <= groundAtDrop && drop.vy < 0) {
+        drop.active = false;
+        splashPositions[i * 3 + 1] = -10;
+        continue;
+      }
+      activeSplashes++;
+      splashPositions[i * 3] = drop.x;
+      splashPositions[i * 3 + 1] = drop.y;
+      splashPositions[i * 3 + 2] = drop.z;
+      const progress = drop.age / drop.life;
+      const alpha = Math.max(0, 1 - progress * progress);
+      splashColors[i * 3] = 0.88 * alpha;
+      splashColors[i * 3 + 1] = 0.96 * alpha;
+      splashColors[i * 3 + 2] = 1.0 * alpha;
+    }
+    splashPosAttr.needsUpdate = true;
+    splashColAttr.needsUpdate = true;
+    splashPoints.visible = activeSplashes > 0;
 
     if (rain.visible) {
       const rainSpeed = 5 + Math.min(weather.rain, 30) * 0.1;
@@ -574,8 +1035,10 @@ export function createEnvironment(scene: THREE.Scene): {
   update(0, 0);
   function setDaylight(light:number,phase:number){
     daylight=THREE.MathUtils.clamp(light,0,1);
+    solarPhase=phase;
     sun.position.set(-Math.cos(phase*Math.PI)*8,Math.max(1,Math.sin(phase*Math.PI)*10),4);
     setWeather({...weather,isDay:daylight>.3});
   }
-  return { ground, update, ripple, setWeather, setDaylight, setSkyDate:nightSky.setDate, setShelterDoor:shelter.setDoor };
+  function setSkyDate(date: Date) { nightSky.setDate(date); hedgeDetails.setDate(date); }
+  return { ground, update, ripple, splash, setWeather, setDaylight, setSkyDate, setShelterDoor:shelter.setDoor, updateContactShadows:contactShadows.update };
 }

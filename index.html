@@ -5,6 +5,7 @@
   <canvas id="garden" aria-label="3D-have med fire løbeænder. Klik kort på græsset for at kaste pasta. Venstre museknap og træk drejer kameraet; højre museknap og træk flytter udsigten."></canvas>
   <header class="topbar">
    <div class="brand"><img class="brand-logo" src="./gistrup-ande-tv.png" width="78" height="78" alt=""/><h1>Gistrup<br>Ande TV</h1></div>
+   <div id="fps-counter" class="fps-badge" hidden aria-hidden="true"><span id="fps-val">30</span> FPS</div>
   </header>
   <aside id="settings" class="control-dock" aria-label="Indstillinger for haven">
    <button id="dock-toggle" aria-expanded="false" aria-controls="dock-content"><svg class="settings-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg><span>Indstillinger</span><svg class="settings-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m6 12 4-4 4 4"/></svg></button>
@@ -24,6 +25,8 @@
    <label class="switch-row" for="music-toggle"><span><span class="control-picture" aria-hidden="true">♫</span>Musik</span><span class="switch-state" aria-hidden="true"></span><input id="music-toggle" type="checkbox" role="switch" aria-describedby="music-note"/><span class="switch-track" aria-hidden="true"></span></label>
    <p id="music-note" class="settings-note" aria-live="polite" hidden></p>
    <label class="switch-row" for="behavior-toggle"><span><span class="control-picture" aria-hidden="true">☷</span>Vis andeadfærd</span><span class="switch-state" aria-hidden="true"></span><input id="behavior-toggle" type="checkbox" role="switch"/><span class="switch-track" aria-hidden="true"></span></label>
+   <label class="switch-row" for="fps-limit-toggle"><span><span class="control-picture" aria-hidden="true">🔋</span>Begræns til 30 FPS</span><span class="switch-state" aria-hidden="true"></span><input id="fps-limit-toggle" type="checkbox" role="switch" checked/><span class="switch-track" aria-hidden="true"></span></label>
+   <label class="switch-row" for="fps-toggle"><span><span class="control-picture" aria-hidden="true">⚡</span>Vis FPS</span><span class="switch-state" aria-hidden="true"></span><input id="fps-toggle" type="checkbox" role="switch"/><span class="switch-track" aria-hidden="true"></span></label>
    </section></div>
    <p class="settings-note desktop-help">Klik: pasta · venstre træk: drej · højre træk: flyt · piltaster: gå rundt</p>
    <p class="settings-note touch-help">Tryk kort: pasta · én finger: drej · to fingre: flyt og zoom</p>
@@ -31,6 +34,14 @@
    </div>
   </aside>
   <ul id="behavior-notices" aria-live="polite" aria-relevant="additions" aria-label="Ændernes aktiviteter"></ul>
+   <div id="duck-focus-card" class="duck-focus-card" hidden aria-live="polite">
+    <button id="duck-focus-close" class="duck-focus-close" aria-label="Luk fokus">✕</button>
+    <div class="duck-focus-header">
+     <strong id="duck-focus-name">Anders</strong>
+     <span id="duck-focus-title">Andrik · han med halsring</span>
+    </div>
+    <p id="duck-focus-status">Holder vagt</p>
+   </div>
   <div id="loading" role="status" aria-label="TV tænder">
    <div class="startup-screen">
     <div class="startup-brand"><img src="./gistrup-ande-tv.png" width="78" height="78" alt=""/><span>Gistrup<br>Ande TV</span></div>
