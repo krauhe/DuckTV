@@ -93,7 +93,7 @@ export function createEnvironment(scene: THREE.Scene): {
   const skyOvercast = new THREE.Color(0x566572);
   const skyNight = new THREE.Color(0x182c49);
   scene.background = skyDay.clone();
-  const fog = new THREE.Fog(skyDay.clone(), 28, 92);
+  const fog = new THREE.Fog(skyDay.clone(), 36, 130);
   scene.fog = fog;
   const sky=createSky(scene);
 

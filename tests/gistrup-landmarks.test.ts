@@ -352,12 +352,56 @@ test('emergency helicopter state machine completes flight, lands on helipad, and
   const hospital = createGistrupHospital();
   const helicopter = createHelicopter(hospital.helipadPosition);
 
+  // Verify no searchlight projector cone exists in helicopter group
+  let hasSearchlightCone = false;
+  let sphereLightCount = 0;
+  let flatPlaneLightCount = 0;
+  helicopter.group.traverse(child => {
+    if (child instanceof THREE.Mesh) {
+      if (child.geometry instanceof THREE.ConeGeometry) {
+        hasSearchlightCone = true;
+      }
+      const mat = child.material;
+      if (mat instanceof THREE.MeshBasicMaterial && (mat.transparent || mat.blending === THREE.AdditiveBlending)) {
+        if (child.geometry instanceof THREE.SphereGeometry) {
+          sphereLightCount++;
+        } else if (child.geometry instanceof THREE.PlaneGeometry) {
+          flatPlaneLightCount++;
+        }
+      }
+    }
+  });
+  assert.equal(hasSearchlightCone, false, 'helicopter must not have a searchlight projector cone');
+  assert.equal(flatPlaneLightCount, 0, 'lighting must not use flat planes');
+  assert.ok(sphereLightCount >= 5, 'top & bottom beacons, port & starboard nav, tail nav, and tail strobe must be 3D spheres');
+
   // Starts idle or staging
   helicopter.trigger(); // Trigger immediate inbound flight
 
   // Advance simulation to inbound
   helicopter.update(0.1);
   assert.equal(helicopter.group.visible, true, 'helicopter becomes visible when flying inbound');
+
+  // Advance simulation into inbound flight to check flight direction
+  const posBefore = helicopter.position.clone();
+  for (let i = 0; i < 20; i++) {
+    helicopter.update(0.1);
+  }
+  const velocityDir = new THREE.Vector3().subVectors(helicopter.position, posBefore);
+  velocityDir.y = 0;
+  velocityDir.normalize();
+
+  // Forward direction of the helicopter model (+Z is nose) transformed to world space
+  helicopter.group.updateMatrixWorld(true);
+  const forwardLocal = new THREE.Vector3(0, 0, 1);
+  const forwardWorld = forwardLocal.transformDirection(helicopter.group.matrixWorld);
+  const forwardHorizontal = new THREE.Vector3(forwardWorld.x, 0, forwardWorld.z).normalize();
+
+  const dot = forwardHorizontal.dot(velocityDir);
+  assert.ok(
+    dot > 0.8,
+    `helicopter flies nose-first along velocity direction (dot=${dot.toFixed(2)} must be positive, not backwards)`
+  );
 
   // Advance simulation through inbound (22s) and approach (12s) until landed
   let reachedLanded = false;

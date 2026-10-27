@@ -174,10 +174,10 @@ export function createGistrupForest(): GistrupForest {
 
   // ========================================================================
   // 1. ROLLING HILL RIDGES (Lundby Krat morænebakker)
-  // 3 distinct layers extending towards East and South-East (x: 25-55, z: -15-30)
-  // Layer 1: Front ridge (x ~ 26-33, detail, crisp moraine slopes)
-  // Layer 2: Mid ridge (x ~ 36-44, higher elevation)
-  // Layer 3: Distant ridge (x ~ 47-56, tallest hill tops, blueish haze)
+  // 3 distinct layers extending towards East and South-East (x: 40-78, z: -22-44)
+  // Layer 1: Front ridge (x ~ 40-48, detail, crisp moraine slopes)
+  // Layer 2: Mid ridge (x ~ 54-62, higher elevation)
+  // Layer 3: Distant ridge (x ~ 68-78, tallest hill tops, blueish haze)
   // ========================================================================
 
   interface RidgeSpec {
@@ -191,9 +191,9 @@ export function createGistrupForest(): GistrupForest {
   }
 
   const ridgeSpecs: RidgeSpec[] = [
-    { layerIndex: 0, baseX: 28.5, hazeFactor: 0.00, elevMin: 2.2, elevMax: 4.8, hillCount: 7, treeCount: 36 },
-    { layerIndex: 1, baseX: 38.0, hazeFactor: 0.18, elevMin: 4.5, elevMax: 8.5, hillCount: 8, treeCount: 46 },
-    { layerIndex: 2, baseX: 48.5, hazeFactor: 0.38, elevMin: 8.0, elevMax: 14.0, hillCount: 9, treeCount: 56 },
+    { layerIndex: 0, baseX: 44.0, hazeFactor: 0.00, elevMin: 3.5, elevMax: 6.8, hillCount: 8, treeCount: 42 },
+    { layerIndex: 1, baseX: 58.0, hazeFactor: 0.18, elevMin: 6.5, elevMax: 11.5, hillCount: 9, treeCount: 52 },
+    { layerIndex: 2, baseX: 72.0, hazeFactor: 0.38, elevMin: 10.0, elevMax: 17.5, hillCount: 10, treeCount: 64 },
   ];
 
   // Geometries for hills: smooth rolling Gaussian ellipsoids
@@ -222,14 +222,14 @@ export function createGistrupForest(): GistrupForest {
 
   // Populate hills across the 3 layers
   for (const spec of ridgeSpecs) {
-    const zSpan = 45; // z from -15 to 30
+    const zSpan = 65;
     const step = zSpan / spec.hillCount;
     for (let i = 0; i < spec.hillCount; i++) {
-      const z = -14 + i * step + (rand() - 0.5) * 4.0;
+      const z = -20 + i * step + (rand() - 0.5) * 5.0;
       const x = spec.baseX + (rand() - 0.5) * 4.5;
       const h = spec.elevMin + rand() * (spec.elevMax - spec.elevMin);
-      const radX = 6.5 + rand() * 4.5;
-      const radZ = 7.0 + rand() * 5.0;
+      const radX = 9.0 + rand() * 5.5;
+      const radZ = 10.0 + rand() * 6.5;
       hillPlacements.push({
         x,
         y: h * 0.45,
@@ -331,15 +331,15 @@ export function createGistrupForest(): GistrupForest {
   const treePlacements: TreePlacement[] = [];
 
   for (const spec of ridgeSpecs) {
-    const zMin = -15;
-    const zMax = 30;
+    const zMin = -22;
+    const zMax = 44;
     const count = spec.treeCount;
     for (let i = 0; i < count; i++) {
       const z = zMin + (i / count) * (zMax - zMin) + (rand() - 0.5) * 3.2;
       const x = spec.baseX + (rand() - 0.5) * 6.5;
       const y = getForestGroundHeight(x, z);
       const isPine = rand() < 0.38; // ~38% pine / conifer, 62% beech
-      const scale = (isPine ? 1.05 + rand() * 0.45 : 1.25 + rand() * 0.55) * (1.0 + spec.layerIndex * 0.12);
+      const scale = (isPine ? 1.4 + rand() * 0.55 : 1.6 + rand() * 0.65) * (1.0 + spec.layerIndex * 0.14);
       treePlacements.push({
         pos: new THREE.Vector3(x, y - 0.05, z),
         scale,

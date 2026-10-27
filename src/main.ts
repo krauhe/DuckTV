@@ -215,11 +215,26 @@ function moveCameraWithKeys(dt: number, now: number) {
 const cameraFollow = new CameraFollow();
 addEventListener('blur', () => cameraFollow.release(performance.now() / 1000));
 
-// Mus og touch: Spilleren drejer om sig selv ved træk (ikke centreret om ænderne)
+// Mus: Spilleren drejer om sig selv ved træk med venstre musetast
 let isPointerDragging = false;
 let activeDragId: number | null = null;
+let startDragX = 0;
+let startDragY = 0;
 let lastDragX = 0;
 let lastDragY = 0;
+let hasExceededDragThreshold = false;
+
+// Touch: 2 fingre drejer kameraet og kniber for zoom. 1 finger er 100% fri til at kaste pasta
+interface TouchPoint {
+  id: number;
+  x: number;
+  y: number;
+}
+const activeTouches = new Map<number, TouchPoint>();
+let lastTouchMidX = 0;
+let lastTouchMidY = 0;
+let lastTouchDist = 0;
+let isTwoFingerDragging = false;
 
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
@@ -306,35 +321,114 @@ function cast(x:number,z:number){return sim.castFood(x,z)}
 const feedGesture=new FeedGesture();
 canvas.addEventListener('pointerdown', e => {
   feedGesture.down(e.pointerId, e.button, e.clientX, e.clientY, performance.now());
+
+  if (e.pointerType === 'touch') {
+    activeTouches.set(e.pointerId, { id: e.pointerId, x: e.clientX, y: e.clientY });
+    if (activeTouches.size === 2) {
+      const [t1, t2] = Array.from(activeTouches.values());
+      lastTouchMidX = (t1.x + t2.x) / 2;
+      lastTouchMidY = (t1.y + t2.y) / 2;
+      lastTouchDist = Math.hypot(t2.x - t1.x, t2.y - t1.y);
+      isTwoFingerDragging = true;
+      cameraFollow.manual(performance.now() / 1000, true);
+    }
+    return;
+  }
+
+  // Mus: Kun venstre musetast (button === 0)
   if (e.button === 0) {
     isPointerDragging = true;
     activeDragId = e.pointerId;
+    startDragX = e.clientX;
+    startDragY = e.clientY;
     lastDragX = e.clientX;
     lastDragY = e.clientY;
-    cameraFollow.manual(performance.now() / 1000, true);
+    hasExceededDragThreshold = false;
+    try { canvas.setPointerCapture(e.pointerId); } catch {}
   }
 });
 
 canvas.addEventListener('pointermove', e => {
   feedGesture.move(e.pointerId, e.clientX, e.clientY);
-  if (isPointerDragging && activeDragId === e.pointerId) {
-    const dx = e.clientX - lastDragX;
-    const dy = e.clientY - lastDragY;
-    lastDragX = e.clientX;
-    lastDragY = e.clientY;
 
-    const isTouch = e.pointerType === 'touch';
-    // Drej om sig selv: mus til højre drejer mod højre, mus frem/op vipper op mod himlen
-    const sensX = isTouch ? 0.0044 : 0.0034;
-    const sensY = isTouch ? 0.0038 : 0.0028;
+  if (e.pointerType === 'touch') {
+    const t = activeTouches.get(e.pointerId);
+    if (t) {
+      t.x = e.clientX;
+      t.y = e.clientY;
+    }
+    if (activeTouches.size >= 2 && isTwoFingerDragging) {
+      const [t1, t2] = Array.from(activeTouches.values());
+      const midX = (t1.x + t2.x) / 2;
+      const midY = (t1.y + t2.y) / 2;
+      const dist = Math.hypot(t2.x - t1.x, t2.y - t1.y);
 
-    targetYaw += dx * sensX;
-    targetPitch -= dy * sensY;
-    targetPitch = THREE.MathUtils.clamp(targetPitch, -Math.PI * 0.25, Math.PI * 0.25);
-    cameraFollow.manual(performance.now() / 1000, true);
+      const dx = midX - lastTouchMidX;
+      const dy = midY - lastTouchMidY;
+      const dDist = dist - lastTouchDist;
+
+      lastTouchMidX = midX;
+      lastTouchMidY = midY;
+      lastTouchDist = dist;
+
+      // 1. To fingre trækker for at dreje kameraet om sig selv
+      const touchSensX = 0.0042;
+      const touchSensY = 0.0036;
+      targetYaw += dx * touchSensX;
+      targetPitch -= dy * touchSensY;
+      targetPitch = THREE.MathUtils.clamp(targetPitch, -Math.PI * 0.25, Math.PI * 0.25);
+
+      // 2. Knib (pinch) for at gå frem eller tilbage i haven
+      if (Math.abs(dDist) > 1.2) {
+        const fX = Math.sin(cameraYaw);
+        const fZ = -Math.cos(cameraYaw);
+        const zoomStep = dDist * 0.016;
+        camera.position.x = THREE.MathUtils.clamp(camera.position.x + fX * zoomStep, GARDEN.minX + 0.15, GARDEN.maxX - 0.15);
+        camera.position.z = THREE.MathUtils.clamp(camera.position.z + fZ * zoomStep, GARDEN.minZ + 0.15, GARDEN.maxZ - 0.15);
+      }
+
+      cameraFollow.manual(performance.now() / 1000, true);
+    }
+    return;
   }
 
-  if (e.pointerType === 'touch') return;
+  // Mus skal ALTID have venstre musetast aktivt holdt nede for at flytte view
+  if ((e.buttons & 1) === 0) {
+    if (isPointerDragging) {
+      isPointerDragging = false;
+      activeDragId = null;
+      hasExceededDragThreshold = false;
+      try { canvas.releasePointerCapture(e.pointerId); } catch {}
+      cameraFollow.manual(performance.now() / 1000, false);
+    }
+  }
+
+  if (isPointerDragging && activeDragId === e.pointerId) {
+    // 6px dødzone forhindrer utilsigtede kamerabevægelser ved hurtige klik for at fodre
+    if (!hasExceededDragThreshold) {
+      if (Math.hypot(e.clientX - startDragX, e.clientY - startDragY) >= 6) {
+        hasExceededDragThreshold = true;
+        lastDragX = e.clientX;
+        lastDragY = e.clientY;
+      }
+    }
+
+    if (hasExceededDragThreshold) {
+      const dx = e.clientX - lastDragX;
+      const dy = e.clientY - lastDragY;
+      lastDragX = e.clientX;
+      lastDragY = e.clientY;
+
+      const sensX = 0.0034;
+      const sensY = 0.0028;
+
+      targetYaw += dx * sensX;
+      targetPitch -= dy * sensY;
+      targetPitch = THREE.MathUtils.clamp(targetPitch, -Math.PI * 0.25, Math.PI * 0.25);
+      cameraFollow.manual(performance.now() / 1000, true);
+    }
+  }
+
   const hoveredDuck = duckAtScreen(e.clientX, e.clientY);
   canvas.style.cursor = hoveredDuck ? 'pointer' : 'default';
   if (hoveredDuck) {
@@ -352,18 +446,27 @@ canvas.addEventListener('pointerleave', () => {
 });
 
 canvas.addEventListener('pointercancel', e => {
-  if (activeDragId === e.pointerId) {
+  if (e.pointerType === 'touch') {
+    activeTouches.delete(e.pointerId);
+    if (activeTouches.size < 2) isTwoFingerDragging = false;
+  } else if (activeDragId === e.pointerId) {
     isPointerDragging = false;
     activeDragId = null;
+    hasExceededDragThreshold = false;
+    try { canvas.releasePointerCapture(e.pointerId); } catch {}
   }
   feedGesture.cancel(e.pointerId);
   cameraFollow.manual(performance.now() / 1000, false);
 });
 
 canvas.addEventListener('lostpointercapture', e => {
-  if (activeDragId === e.pointerId) {
+  if (e.pointerType === 'touch') {
+    activeTouches.delete(e.pointerId);
+    if (activeTouches.size < 2) isTwoFingerDragging = false;
+  } else if (activeDragId === e.pointerId) {
     isPointerDragging = false;
     activeDragId = null;
+    hasExceededDragThreshold = false;
   }
   feedGesture.cancel(e.pointerId);
 });
@@ -371,14 +474,25 @@ canvas.addEventListener('lostpointercapture', e => {
 addEventListener('blur', () => {
   isPointerDragging = false;
   activeDragId = null;
+  hasExceededDragThreshold = false;
+  activeTouches.clear();
+  isTwoFingerDragging = false;
   feedGesture.reset();
   cameraFollow.release(performance.now() / 1000);
 });
 
 canvas.addEventListener('pointerup', e => {
-  if (activeDragId === e.pointerId) {
+  if (e.pointerType === 'touch') {
+    activeTouches.delete(e.pointerId);
+    if (activeTouches.size < 2) {
+      isTwoFingerDragging = false;
+      cameraFollow.manual(performance.now() / 1000, false);
+    }
+  } else if (activeDragId === e.pointerId) {
     isPointerDragging = false;
     activeDragId = null;
+    hasExceededDragThreshold = false;
+    try { canvas.releasePointerCapture(e.pointerId); } catch {}
     cameraFollow.manual(performance.now() / 1000, false);
   }
   if (!feedGesture.up(e.pointerId, e.button, e.clientX, e.clientY, performance.now())) return;

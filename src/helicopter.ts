@@ -105,23 +105,21 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
     fog: false,
   });
 
+  const whiteNavMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.85,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: false,
+  });
+
   const whiteTailStrobeMat = new THREE.MeshBasicMaterial({
     color: 0xffffff,
     transparent: true,
     opacity: 0,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
-    fog: false,
-  });
-
-  // Landings-søgelyskegle (Night-sun / searchlight)
-  const searchlightConeMat = new THREE.MeshBasicMaterial({
-    color: 0xe8f4ff,
-    transparent: true,
-    opacity: 0,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
     fog: false,
   });
 
@@ -315,10 +313,10 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
   }
 
   // -------------------------------------------------------------
-  // 3. LYS & STROBES
+  // 3. LYS & STROBES (Autentisk luftfartsbelysning)
   // -------------------------------------------------------------
   // Rød antikollision: Top (på rotormasten) og Bund (under bugen)
-  const beaconGeo = new THREE.PlaneGeometry(0.85, 0.85);
+  const beaconGeo = new THREE.SphereGeometry(0.08, 8, 8);
 
   const topBeaconMesh = new THREE.Mesh(beaconGeo, beaconLightMat);
   topBeaconMesh.position.set(0, 1.72, 0.35);
@@ -328,37 +326,29 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
   bottomBeaconMesh.position.set(0, -0.82, 0.2);
   group.add(bottomBeaconMesh);
 
-  // Positionslys
-  // Grøn højre vinge/stabilisator (x = +stabW/2)
-  const greenNavGeo = new THREE.SphereGeometry(0.06, 8, 6);
-  const greenNavMesh = new THREE.Mesh(greenNavGeo, greenNavMat);
+  // Positionslys (Navigation lights)
+  // Grøn højre vinge/stabilisator (styrbord)
+  const navGeo = new THREE.SphereGeometry(0.06, 8, 6);
+  const greenNavMesh = new THREE.Mesh(navGeo, greenNavMat);
   greenNavMesh.position.set(stabW / 2 + 0.04, 0.52, -5.4);
   group.add(greenNavMesh);
 
-  // Rød venstre vinge/stabilisator (x = -stabW/2)
-  const redNavMesh = new THREE.Mesh(greenNavGeo, redNavMat);
+  // Rød venstre vinge/stabilisator (bagbord)
+  const redNavMesh = new THREE.Mesh(navGeo, redNavMat);
   redNavMesh.position.set(-stabW / 2 - 0.04, 0.52, -5.4);
   group.add(redNavMesh);
 
-  // Hvidt halestrobe på halespidsen
-  const tailStrobeGeo = new THREE.PlaneGeometry(0.65, 0.65);
+  // Hvid agterlanterne (steady rear navigation light på halestabilisatoren)
+  const whiteNavGeo = new THREE.SphereGeometry(0.06, 8, 6);
+  const whiteNavMesh = new THREE.Mesh(whiteNavGeo, whiteNavMat);
+  whiteNavMesh.position.set(0, 0.52, -5.65);
+  group.add(whiteNavMesh);
+
+  // Hvidt halestrobe på toppen af halefinnen (omnidirektionel 3D-kugle)
+  const tailStrobeGeo = new THREE.SphereGeometry(0.08, 8, 8);
   const tailStrobeMesh = new THREE.Mesh(tailStrobeGeo, whiteTailStrobeMat);
   tailStrobeMesh.position.set(0, 1.78, -6.4);
   group.add(tailStrobeMesh);
-
-  // Nedadvendt landings-søgelyskegle (tændes ved indflyvning og landing)
-  const searchlightGroup = new THREE.Group();
-  searchlightGroup.position.set(0, -0.65, 1.8);
-  searchlightGroup.rotation.x = THREE.MathUtils.degToRad(-35); // Peger frem og ned mod landingsbanen
-  group.add(searchlightGroup);
-
-  const coneH = 14.0;
-  const coneR = 3.6;
-  const coneGeo = new THREE.ConeGeometry(coneR, coneH, 18, 1, true);
-  coneGeo.translate(0, -coneH / 2, 0);
-  coneGeo.rotateX(Math.PI); // Åbningen vender fremad/nedad
-  const searchlightMesh = new THREE.Mesh(coneGeo, searchlightConeMat);
-  searchlightGroup.add(searchlightMesh);
 
   // -------------------------------------------------------------
   // 4. STATE MACHINE & FLIGHT PATH
@@ -375,7 +365,7 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
   const skidTouchdownOffsetY = Math.abs(skidY); // 0.88m
 
   // Flyvekoordinater
-  const startPos = new THREE.Vector3(42.0, 26.0, 10.0); // Over skoven mod øst
+  const startPos = new THREE.Vector3(58.0, 30.0, 16.0); // Over skoven mod øst
   const midPos = new THREE.Vector3(14.0, 18.0, -22.0); // Tæt forbi haven
   const approachPos = new THREE.Vector3(
     helipadTarget.x + 9.0,
@@ -409,7 +399,6 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
     group.visible = false;
     isAudibleOrVisibleNear = false;
     rotorSpeed = 0;
-    searchlightConeMat.opacity = 0;
     autoTriggerTimer = 140.0; // Næste tur efter ca. 2.5 minutter
   }
 
@@ -419,6 +408,8 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
     group.visible = true;
     rotorSpeed = 26.0; // Fuld rotorfart
     group.position.copy(startPos);
+    const initHeading = Math.atan2(midPos.x - startPos.x, midPos.z - startPos.z);
+    group.rotation.set(0.10, initHeading, 0);
   }
 
   return {
@@ -478,6 +469,7 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
       const navBrightness = solarAltitude < 5 ? 1.0 : 0.7;
       greenNavMat.opacity = navBrightness;
       redNavMat.opacity = navBrightness;
+      whiteNavMat.opacity = navBrightness;
 
       // ---------------------------------------------------------
       // C. STATE MACHINE
@@ -489,7 +481,6 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
           group.visible = false;
           isAudibleOrVisibleNear = false;
           rotorSpeed = 0;
-          searchlightConeMat.opacity = 0;
 
           autoTriggerTimer -= delta;
           if (autoTriggerTimer <= 0) {
@@ -527,11 +518,11 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
           const dirX = group.position.x - prevPos.x;
           const dirZ = group.position.z - prevPos.z;
           if (Math.hypot(dirX, dirZ) > 0.01) {
-            const targetHeading = Math.atan2(dirX, dirZ) + Math.PI;
+            const targetHeading = Math.atan2(dirX, dirZ);
             group.rotation.y = THREE.MathUtils.lerp(group.rotation.y, targetHeading, 0.08);
-            // Let næsedyp (pitch) og venstrekrængning (roll) i kurven
-            group.rotation.x = -0.12;
-            group.rotation.z = -0.18 * (1.0 - Math.abs(t - 0.5) * 2);
+            // Let næsedyp (pitch) og krængning (roll) i kurven
+            group.rotation.x = 0.10;
+            group.rotation.z = -0.15 * (1.0 - Math.abs(t - 0.5) * 2);
           }
 
           if (t >= 1.0) {
@@ -543,38 +534,43 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
 
         case 'approach': {
           // Varighed: 12 sekunder
-          // Cirkler ind mod sygehuset, tænder søgelys, sænker farten og lander
+          // Cirkler ind mod sygehuset næsen forrest, sænker farten og lander lodret
           const duration = 12.0;
           const t = Math.min(1.0, stateTime / duration);
           rotorSpeed = 27.0;
           isAudibleOrVisibleNear = false;
 
-          // Tænd landingssøgelyset
-          const lightIntensity = solarAltitude < 4 ? 0.65 : 0.25;
-          searchlightConeMat.opacity = THREE.MathUtils.lerp(searchlightConeMat.opacity, lightIntensity, 0.1);
-
-          // Nedstigning: først til hoverPos (t=0..0.7), derefter lodret ned til landPos (t=0.7..1.0)
+          // Nedstigning: først flyvning til hoverPos (t=0..0.7), derefter lodret touchdown til landPos (t=0.7..1.0)
           if (t < 0.7) {
             const subT = t / 0.7;
             const easeT = 0.5 - 0.5 * Math.cos(subT * Math.PI);
             group.position.lerpVectors(approachPos, hoverPos, easeT);
+
+            const dirX = group.position.x - prevPos.x;
+            const dirZ = group.position.z - prevPos.z;
+            if (Math.hypot(dirX, dirZ) > 0.01) {
+              const targetHeading = Math.atan2(dirX, dirZ);
+              group.rotation.y = THREE.MathUtils.lerp(group.rotation.y, targetHeading, 0.12);
+              // Let afbremsning (svag flare / næse op for at tage farten af)
+              group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, -0.05, 0.08);
+              group.rotation.z = THREE.MathUtils.lerp(group.rotation.z, 0, 0.08);
+            }
           } else {
             const subT = (t - 0.7) / 0.3;
             const easeT = 0.5 - 0.5 * Math.cos(subT * Math.PI);
             group.position.lerpVectors(hoverPos, landPos, easeT);
-          }
 
-          // Ret op til vandret stilling over helipladsen
-          const targetHeading = Math.PI * 0.15; // Lander vendt mod haven/syd
-          group.rotation.y = THREE.MathUtils.lerp(group.rotation.y, targetHeading, 0.05);
-          group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, 0, 0.08);
-          group.rotation.z = THREE.MathUtils.lerp(group.rotation.z, 0, 0.08);
+            // Lodret fald til helipladsen i helt vandret attityde
+            group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, 0, 0.10);
+            group.rotation.z = THREE.MathUtils.lerp(group.rotation.z, 0, 0.10);
+          }
 
           if (t >= 1.0) {
             state = 'landed';
             stateTime = 0;
             group.position.copy(landPos);
-            group.rotation.set(0, targetHeading, 0);
+            group.rotation.x = 0;
+            group.rotation.z = 0;
           }
           break;
         }
@@ -583,7 +579,6 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
           // Holder på helipladsen i præcis 45 sekunder
           const stayDuration = 45.0;
           group.position.copy(landPos);
-          group.rotation.set(0, Math.PI * 0.15, 0);
           isAudibleOrVisibleNear = false;
 
           // Rotoren decelererer blødt til rolig tomgang (~8 rad/s)
@@ -596,10 +591,6 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
             rotorSpeed = THREE.MathUtils.lerp(rotorSpeed, 28.0, 0.08);
           }
 
-          // Søgelys forbliver tændt under hele opholdet
-          const lightIntensity = solarAltitude < 4 ? 0.6 : 0.2;
-          searchlightConeMat.opacity = lightIntensity;
-
           if (stateTime >= stayDuration) {
             state = 'takeoff';
             stateTime = 0;
@@ -609,7 +600,7 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
 
         case 'takeoff': {
           // Varighed: 8 sekunder
-          // Letter lodret 6m op fra helipladsen, vipper næsen fremad og drejer mod vest
+          // Letter lodret 6m op fra helipladsen, vipper næsen fremad og drejer mod udflyvningsretningen
           const duration = 8.0;
           const t = Math.min(1.0, stateTime / duration);
           rotorSpeed = 28.0;
@@ -619,13 +610,13 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
           const easeT = 0.5 - 0.5 * Math.cos(t * Math.PI);
           group.position.lerpVectors(landPos, takeoffHoverPos, easeT);
 
-          // Drej mod vest/nordvest
-          const targetTakeoffHeading = -Math.PI * 0.45;
-          group.rotation.y = THREE.MathUtils.lerp(group.rotation.y, targetTakeoffHeading, 0.06);
+          // Drej mod udflyvningsretningen (mod outMidPos mod vest/nordvest)
+          const targetTakeoffHeading = Math.atan2(outMidPos.x - takeoffHoverPos.x, outMidPos.z - takeoffHoverPos.z);
+          group.rotation.y = THREE.MathUtils.lerp(group.rotation.y, targetTakeoffHeading, 0.08);
 
           // Vip næsen fremad i slutningen af løftet
           if (t > 0.5) {
-            group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, -0.16, 0.08);
+            group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, 0.12, 0.08);
           }
 
           if (t >= 1.0) {
@@ -642,9 +633,6 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
           const t = Math.min(1.0, stateTime / duration);
           rotorSpeed = 28.0;
 
-          // Sluk søgelyset gradvist efter at have forladt sygehuset
-          searchlightConeMat.opacity = THREE.MathUtils.lerp(searchlightConeMat.opacity, 0, 0.05);
-
           // Kvadratisk bezier ud mod horisonten
           const p1 = takeoffHoverPos;
           const p2 = outMidPos;
@@ -660,10 +648,10 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
           const dirX = group.position.x - prevPos.x;
           const dirZ = group.position.z - prevPos.z;
           if (Math.hypot(dirX, dirZ) > 0.01) {
-            const targetHeading = Math.atan2(dirX, dirZ) + Math.PI;
+            const targetHeading = Math.atan2(dirX, dirZ);
             group.rotation.y = THREE.MathUtils.lerp(group.rotation.y, targetHeading, 0.08);
-            group.rotation.x = -0.15;
-            group.rotation.z = 0.12 * (1.0 - t); // Svag højredrejning
+            group.rotation.x = 0.12;
+            group.rotation.z = 0.10 * (1.0 - t);
           }
 
           // Ikke længere hørbar tæt på haven
@@ -682,7 +670,6 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
           group.visible = false;
           isAudibleOrVisibleNear = false;
           rotorSpeed = 0;
-          searchlightConeMat.opacity = 0;
 
           if (stateTime >= 60.0) {
             resetToIdle();
