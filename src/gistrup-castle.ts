@@ -793,14 +793,6 @@ export function createGistrupCastle(): GistrupCastle {
   wallCoping.translate(wallMidX, lowWallH + 0.04, wallMidZ);
   stoneGeos.push(wallCoping);
 
-  // Portbygning med lille sadeltag ved broen
-  const gateX = turretX + 0.85;
-  const gateZ = turretZ + 0.85;
-  const gateRoof = new THREE.BoxGeometry(1.6, 0.12, 1.4);
-  gateRoof.rotateZ(0.35);
-  gateRoof.translate(gateX, lowWallH + 0.45, gateZ);
-  roofGeos.push(gateRoof);
-
   // TRÆBRO / VINDEBRO OVER VOLDGRAVEN (Fra hjørnetårnet ud mod vejen)
   const bridgeX = turretX - 0.15;
   const bridgeZ = turretZ + 2.40;
