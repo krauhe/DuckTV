@@ -2,7 +2,6 @@ import './style.css';
 import {startAnalytics} from './analytics';
 import {gardenGroundHeight} from './shelter';
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createDuck } from './duck-model';
 import { createFly } from './insect-model';
 import { createEnvironment } from './environment';
@@ -134,62 +133,112 @@ function fitCameraWidth(){
  camera.updateProjectionMatrix();
 }
 fitCameraWidth();
-const controls=new OrbitControls(camera,canvas);
-const cameraKeys=new Set<string>();
-const arrowKeys=new Set(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
-const keyboardForward=new THREE.Vector3();
-document.addEventListener('keydown',e=>{
- if(!arrowKeys.has(e.key)||e.altKey||e.ctrlKey||e.metaKey)return;
- if(e.target instanceof Element&&e.target.closest('input,select,textarea,button,a,[contenteditable]'))return;
- e.preventDefault();cameraKeys.add(e.key);cameraFollow.manual(performance.now()/1000);
-});
-document.addEventListener('keyup',e=>{
- if(cameraKeys.delete(e.key)){e.preventDefault();cameraFollow.manual(performance.now()/1000);}
-});
-addEventListener('blur',()=>cameraKeys.clear());
-function moveCameraWithKeys(dt:number,now:number){
- if(!cameraKeys.size)return;
- cameraFollow.manual(now);
- const forward=Number(cameraKeys.has('ArrowUp'))-Number(cameraKeys.has('ArrowDown'));
- const side=Number(cameraKeys.has('ArrowRight'))-Number(cameraKeys.has('ArrowLeft'));
- const length=Math.hypot(forward,side);
- if(!length)return;
- camera.getWorldDirection(keyboardForward);keyboardForward.y=0;keyboardForward.normalize();
- const step=1.25*dt/length;
- const dx=(keyboardForward.x*forward-keyboardForward.z*side)*step;
- const dz=(keyboardForward.z*forward+keyboardForward.x*side)*step;
- // Translate the camera and its aim equally; stop both at the garden boundary.
- const x=THREE.MathUtils.clamp(dx,
-  Math.max(GARDEN.minX+.15-camera.position.x,GARDEN.minX+.7-controls.target.x),
-  Math.min(GARDEN.maxX-.15-camera.position.x,GARDEN.maxX-.7-controls.target.x));
- const z=THREE.MathUtils.clamp(dz,
-  Math.max(GARDEN.minZ+.15-camera.position.z,GARDEN.minZ+.7-controls.target.z),
-  Math.min(GARDEN.maxZ-.15-camera.position.z,GARDEN.maxZ-.7-controls.target.z));
- camera.position.x+=x;camera.position.z+=z;controls.target.x+=x;controls.target.z+=z;
+
+// Førstepersons-kamera: Spilleren drejer om sig selv (roterer yaw og pitch på stedet),
+// ikke i en cirkel centreret om ænderne.
+const cameraTarget = new THREE.Vector3();
+let cameraYaw = 0;       // Vandret drejning (radianer)
+let cameraPitch = -0.15; // Lodret vip (radianer, begrænset til [-PI/4, +PI/4] = 45 grader op og ned)
+let targetYaw = 0;
+let targetPitch = -0.15;
+const lookDirection = new THREE.Vector3();
+
+function syncAnglesFromTarget() {
+  const dx = cameraTarget.x - camera.position.x;
+  const dy = cameraTarget.y - camera.position.y;
+  const dz = cameraTarget.z - camera.position.z;
+  const distHoriz = Math.hypot(dx, dz);
+  if (distHoriz > 1e-4) {
+    cameraYaw = Math.atan2(dx, -dz);
+    targetYaw = cameraYaw;
+    cameraPitch = THREE.MathUtils.clamp(Math.atan2(dy, distHoriz), -Math.PI * 0.25, Math.PI * 0.25);
+    targetPitch = cameraPitch;
+  }
 }
-const cameraFollow=new CameraFollow();
-controls.addEventListener('start',()=>cameraFollow.manual(performance.now()/1000,true));
-controls.addEventListener('end',()=>cameraFollow.manual(performance.now()/1000));
-addEventListener('blur',()=>cameraFollow.release(performance.now()/1000));
-canvas.addEventListener('pointercancel',()=>cameraFollow.manual(performance.now()/1000));
-controls.enableDamping=true;controls.dampingFactor=.055;
-canvas.addEventListener('pointerdown',e=>{
- const touch=e.pointerType==='touch';
- controls.panSpeed=touch?1.3:1;controls.dampingFactor=touch?.085:.055;
+
+function applyCameraRotation(dt: number) {
+  cameraYaw = THREE.MathUtils.damp(cameraYaw, targetYaw, 18.0, dt);
+  cameraPitch = THREE.MathUtils.damp(cameraPitch, targetPitch, 18.0, dt);
+
+  const cosP = Math.cos(cameraPitch);
+  lookDirection.set(
+    Math.sin(cameraYaw) * cosP,
+    Math.sin(cameraPitch),
+    -Math.cos(cameraYaw) * cosP
+  ).normalize();
+
+  cameraTarget.copy(camera.position).addScaledVector(lookDirection, 3.0);
+  camera.lookAt(cameraTarget);
+}
+
+const cameraKeys = new Set<string>();
+const arrowKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+document.addEventListener('keydown', e => {
+  if (!arrowKeys.has(e.key) || e.altKey || e.ctrlKey || e.metaKey) return;
+  if (e.target instanceof Element && e.target.closest('input,select,textarea,button,a,[contenteditable]')) return;
+  e.preventDefault();
+  cameraKeys.add(e.key);
+  cameraFollow.manual(performance.now() / 1000);
 });
-controls.minDistance=1.6;controls.maxDistance=9;
-controls.minPolarAngle=Math.PI*0.25;controls.maxPolarAngle=Math.PI*0.75;
-controls.enablePan=true;
-controls.touches={ONE:THREE.TOUCH.ROTATE,TWO:THREE.TOUCH.DOLLY_PAN};
-controls.screenSpacePanning=false;
-controls.mouseButtons={LEFT:THREE.MOUSE.ROTATE,MIDDLE:THREE.MOUSE.DOLLY,RIGHT:THREE.MOUSE.PAN};
-const environment=createEnvironment(scene);
-const eggs=createEggs(scene);
-const forageHoles=createForageHoles(scene),forageTip=new THREE.Vector3();
-const sim=new Simulation();
-const duckModels=sim.ducks.map(d=>{const m=createDuck(d.kind);scene.add(m.group);return m});
-function resetView(){
-  camera.zoom=1;
+document.addEventListener('keyup', e => {
+  if (cameraKeys.delete(e.key)) {
+    e.preventDefault();
+    cameraFollow.manual(performance.now() / 1000);
+  }
+});
+addEventListener('blur', () => cameraKeys.clear());
+
+function moveCameraWithKeys(dt: number, now: number) {
+  if (!cameraKeys.size) return;
+  cameraFollow.manual(now);
+
+  // 1. Drej rundt om sig selv med ArrowLeft / ArrowRight (IKKE pan!)
+  const turn = Number(cameraKeys.has('ArrowRight')) - Number(cameraKeys.has('ArrowLeft'));
+  if (turn !== 0) {
+    const turnSpeed = 2.0; // radianer/sek (~115 grader/sek)
+    targetYaw += turn * turnSpeed * dt;
+    cameraYaw = targetYaw; // omgående respons ved tastetryk
+  }
+
+  // 2. Gå frem/tilbage i kiggeretningen med ArrowUp / ArrowDown
+  const walk = Number(cameraKeys.has('ArrowUp')) - Number(cameraKeys.has('ArrowDown'));
+  if (walk !== 0) {
+    const walkSpeed = 2.4; // meter i sekundet
+    const fX = Math.sin(cameraYaw);
+    const fZ = -Math.cos(cameraYaw);
+    const step = walk * walkSpeed * dt;
+    camera.position.x = THREE.MathUtils.clamp(camera.position.x + fX * step, GARDEN.minX + 0.15, GARDEN.maxX - 0.15);
+    camera.position.z = THREE.MathUtils.clamp(camera.position.z + fZ * step, GARDEN.minZ + 0.15, GARDEN.maxZ - 0.15);
+  }
+}
+
+const cameraFollow = new CameraFollow();
+addEventListener('blur', () => cameraFollow.release(performance.now() / 1000));
+
+// Mus og touch: Spilleren drejer om sig selv ved træk (ikke centreret om ænderne)
+let isPointerDragging = false;
+let activeDragId: number | null = null;
+let lastDragX = 0;
+let lastDragY = 0;
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  cameraFollow.manual(performance.now() / 1000);
+  const step = (e.deltaY < 0 ? 1 : -1) * 0.40;
+  const fX = Math.sin(cameraYaw);
+  const fZ = -Math.cos(cameraYaw);
+  camera.position.x = THREE.MathUtils.clamp(camera.position.x + fX * step, GARDEN.minX + 0.15, GARDEN.maxX - 0.15);
+  camera.position.z = THREE.MathUtils.clamp(camera.position.z + fZ * step, GARDEN.minZ + 0.15, GARDEN.maxZ - 0.15);
+}, { passive: false });
+
+const environment = createEnvironment(scene);
+const eggs = createEggs(scene);
+const forageHoles = createForageHoles(scene), forageTip = new THREE.Vector3();
+const sim = new Simulation();
+const duckModels = sim.ducks.map(d => { const m = createDuck(d.kind); scene.add(m.group); return m; });
+
+function resetView() {
+  camera.zoom = 1;
   camera.updateProjectionMatrix();
   cameraFollow.reset();
   const fc = {
@@ -197,9 +246,9 @@ function resetView(){
     z: sim.ducks.reduce((s, d) => s + d.z, 0) / sim.ducks.length,
   };
   camera.position.set(THREE.MathUtils.clamp(fc.x + .15, -3.2, 3.2), 1.65, THREE.MathUtils.clamp(fc.z + 3.8, 1.2, 4.1));
-  controls.target.set(fc.x, .65, fc.z);
-  controls.update();
-  constrainGardenCamera(camera, controls.target);
+  cameraTarget.set(fc.x, .65, fc.z);
+  syncAnglesFromTarget();
+  constrainGardenCamera(camera, cameraTarget);
 }
 resetView();
 const seenWaterEntries=sim.ducks.map(()=>0);
@@ -255,39 +304,97 @@ function duckAtScreen(clientX: number, clientY: number) {
 
 function cast(x:number,z:number){return sim.castFood(x,z)}
 const feedGesture=new FeedGesture();
-canvas.addEventListener('pointerdown',e=>feedGesture.down(e.pointerId,e.button,e.clientX,e.clientY,performance.now()));
-canvas.addEventListener('pointermove',e=>{
- feedGesture.move(e.pointerId,e.clientX,e.clientY);
- if(e.pointerType==='touch')return;
- const hoveredDuck = duckAtScreen(e.clientX, e.clientY);
- canvas.style.cursor = hoveredDuck ? 'pointer' : 'default';
- if(hoveredDuck){
-  pointerRing.visible = false;
-  return;
- }
- const p=pointAt(e.clientX,e.clientY);
- pointerRing.visible=!!p&&p.x>GARDEN.minX&&p.x<GARDEN.maxX&&p.z>GARDEN.minZ&&p.z<GARDEN.maxZ&&Math.hypot(p.x-POND.x,p.z-POND.z)>POND.radius+.3;
- if(p)pointerRing.position.set(p.x,.027,p.z);
+canvas.addEventListener('pointerdown', e => {
+  feedGesture.down(e.pointerId, e.button, e.clientX, e.clientY, performance.now());
+  if (e.button === 0) {
+    isPointerDragging = true;
+    activeDragId = e.pointerId;
+    lastDragX = e.clientX;
+    lastDragY = e.clientY;
+    cameraFollow.manual(performance.now() / 1000, true);
+  }
 });
-canvas.addEventListener('pointerleave',()=>{pointerRing.visible=false;canvas.style.cursor='default';});
-canvas.addEventListener('pointercancel',e=>feedGesture.cancel(e.pointerId));
-canvas.addEventListener('lostpointercapture',e=>feedGesture.cancel(e.pointerId));
-addEventListener('blur',()=>feedGesture.reset());
-canvas.addEventListener('pointerup',e=>{
- if(!feedGesture.up(e.pointerId,e.button,e.clientX,e.clientY,performance.now()))return;
- // Første tryk uden for menuen lukker den uden samtidig at kaste pasta.
- if(dock.classList.contains('open')){showDock(false);return;}
- const clickedDuck = duckAtScreen(e.clientX, e.clientY);
- if(clickedDuck){
-  setFocusedDuck(clickedDuck.id);
-  return;
- }
- if(focusedDuckId){
-  setFocusedDuck(null);
-  return;
- }
- const p=pointAt(e.clientX,e.clientY);
- if(p) cast(p.x,p.z);
+
+canvas.addEventListener('pointermove', e => {
+  feedGesture.move(e.pointerId, e.clientX, e.clientY);
+  if (isPointerDragging && activeDragId === e.pointerId) {
+    const dx = e.clientX - lastDragX;
+    const dy = e.clientY - lastDragY;
+    lastDragX = e.clientX;
+    lastDragY = e.clientY;
+
+    const isTouch = e.pointerType === 'touch';
+    // Drej om sig selv: mus til højre drejer mod højre, mus frem/op vipper op mod himlen
+    const sensX = isTouch ? 0.0044 : 0.0034;
+    const sensY = isTouch ? 0.0038 : 0.0028;
+
+    targetYaw += dx * sensX;
+    targetPitch -= dy * sensY;
+    targetPitch = THREE.MathUtils.clamp(targetPitch, -Math.PI * 0.25, Math.PI * 0.25);
+    cameraFollow.manual(performance.now() / 1000, true);
+  }
+
+  if (e.pointerType === 'touch') return;
+  const hoveredDuck = duckAtScreen(e.clientX, e.clientY);
+  canvas.style.cursor = hoveredDuck ? 'pointer' : 'default';
+  if (hoveredDuck) {
+    pointerRing.visible = false;
+    return;
+  }
+  const p = pointAt(e.clientX, e.clientY);
+  pointerRing.visible = !!p && p.x > GARDEN.minX && p.x < GARDEN.maxX && p.z > GARDEN.minZ && p.z < GARDEN.maxZ && Math.hypot(p.x - POND.x, p.z - POND.z) > POND.radius + .3;
+  if (p) pointerRing.position.set(p.x, .027, p.z);
+});
+
+canvas.addEventListener('pointerleave', () => {
+  pointerRing.visible = false;
+  canvas.style.cursor = 'default';
+});
+
+canvas.addEventListener('pointercancel', e => {
+  if (activeDragId === e.pointerId) {
+    isPointerDragging = false;
+    activeDragId = null;
+  }
+  feedGesture.cancel(e.pointerId);
+  cameraFollow.manual(performance.now() / 1000, false);
+});
+
+canvas.addEventListener('lostpointercapture', e => {
+  if (activeDragId === e.pointerId) {
+    isPointerDragging = false;
+    activeDragId = null;
+  }
+  feedGesture.cancel(e.pointerId);
+});
+
+addEventListener('blur', () => {
+  isPointerDragging = false;
+  activeDragId = null;
+  feedGesture.reset();
+  cameraFollow.release(performance.now() / 1000);
+});
+
+canvas.addEventListener('pointerup', e => {
+  if (activeDragId === e.pointerId) {
+    isPointerDragging = false;
+    activeDragId = null;
+    cameraFollow.manual(performance.now() / 1000, false);
+  }
+  if (!feedGesture.up(e.pointerId, e.button, e.clientX, e.clientY, performance.now())) return;
+  // Første tryk uden for menuen lukker den uden samtidig at kaste pasta.
+  if (dock.classList.contains('open')) { showDock(false); return; }
+  const clickedDuck = duckAtScreen(e.clientX, e.clientY);
+  if (clickedDuck) {
+    setFocusedDuck(clickedDuck.id);
+    return;
+  }
+  if (focusedDuckId) {
+    setFocusedDuck(null);
+    return;
+  }
+  const p = pointAt(e.clientX, e.clientY);
+  if (p) cast(p.x, p.z);
 });
 const fullscreenSwitch=$<HTMLInputElement>('fullscreen');
 const syncFullscreen=()=>{fullscreenSwitch.checked=!!document.fullscreenElement;};
@@ -401,7 +508,12 @@ function frame(now:number){
  previousCameraPosition.copy(camera.position);
  moveCameraWithKeys(dt,now/1000);
  const targetDucks = focusedDuckId ? sim.ducks.filter(d => d.id === focusedDuckId) : sim.ducks;
- if(!$<HTMLInputElement>('auto-follow').checked||!cameraFollow.update(dt,now/1000,camera,controls.target,targetDucks))controls.update();
+ const isAutoFollowing = $<HTMLInputElement>('auto-follow').checked && cameraFollow.update(dt, now / 1000, camera, cameraTarget, targetDucks);
+ if (isAutoFollowing) {
+  syncAnglesFromTarget();
+ } else {
+  applyCameraRotation(dt);
+ }
  if(focusedDuckId){
   const fd=sim.ducks.find(d=>d.id===focusedDuckId);
   if(fd){
@@ -411,7 +523,7 @@ function frame(now:number){
    setFocusedDuck(null);
   }
  }
- constrainGardenCamera(camera,controls.target,previousCameraPosition);
+ constrainGardenCamera(camera,cameraTarget,previousCameraPosition);
  sim.setViewer(camera.position.x,camera.position.z);
  updateDaylight(dt);sim.update(dt);environment.update(sim.time,dt);environment.setShelterDoor(sim.shelterDoor.closed);
  behaviorNotices.update(sim.ducks,now,preferences.showBehavior&&!$('app').classList.contains('crt-boot'));
@@ -547,7 +659,7 @@ function frame(now:number){
  }
  for(const [id,mesh] of foods)if(!liveIds.has(id)){scene.remove(mesh);foods.delete(id);foodRotations.delete(id)}
  if (preferences.dof !== false) {
-  let targetFocusDist = camera.position.distanceTo(controls.target);
+  let targetFocusDist = camera.position.distanceTo(cameraTarget);
   if (focusedDuckId) {
    const fd = sim.ducks.find(d => d.id === focusedDuckId);
    if (fd) targetFocusDist = Math.hypot(camera.position.x - fd.x, camera.position.y - (fd.y + 0.35), camera.position.z - fd.z);

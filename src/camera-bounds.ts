@@ -35,15 +35,8 @@ function avoidShelter(position:Vector3,previous?:Vector3){
  }
 }
 
-/** Apply after OrbitControls, including its damping: never render outside the hedge. */
+/** Apply after camera motion: never render outside the hedge or through the shelter. */
 export function constrainGardenCamera(camera: PerspectiveCamera, target: Vector3, previous?:Vector3): void {
- const x=MathUtils.clamp(target.x,GARDEN.minX+.7,GARDEN.maxX-.7);
- const z=MathUtils.clamp(target.z,GARDEN.minZ+.7,GARDEN.maxZ-.7);
- camera.position.x+=x-target.x;
- camera.position.z+=z-target.z;
- target.x = x;
- target.z = z;
-
  if (camera.position.y < CAMERA_HEIGHT.min) {
   const dy = CAMERA_HEIGHT.min - camera.position.y;
   camera.position.y += dy;
