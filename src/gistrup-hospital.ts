@@ -13,7 +13,7 @@ export interface GistrupHospital {
 
 /**
  * Supersygehuset i Gistrup (Aalborg Universitetshospital).
- * Placeret mod Nord i horisonten (x ≈ 3.0, y = 0, z = -92.0).
+ * Placeret mod nordvest i horisonten (x = -38, y = 0, z = -92).
  *
  * Forankret solidt på en stor, naturlig nordjysk bakkekam med:
  * - Et bredt, fladt plateau under hele bygningskomplekset.
@@ -23,7 +23,7 @@ export interface GistrupHospital {
 export function createGistrupHospital(): GistrupHospital {
   const group = new THREE.Group();
   group.name = 'gistrup-hospital';
-  const groupPosX = 3.0;
+  const groupPosX = -38.0;
   const groupPosY = 0.0;
   const groupPosZ = -92.0;
   const groupScale = 1.35;

@@ -165,6 +165,7 @@ function createTrunkGeometry(height = 2.4, rBase = 0.18, rTop = 0.09): THREE.Buf
 export function createGistrupForest(): GistrupForest {
   const group = new THREE.Group();
   group.name = 'gistrup-forest';
+  group.rotation.y = -0.20; // Skovbrynet fylder øst/sydøst, fri af borgen.
 
   let seed = 91823;
   const rand = () => {

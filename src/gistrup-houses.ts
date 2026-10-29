@@ -46,8 +46,7 @@ function createDannebrogTexture(): THREE.Texture {
 }
 
 /**
- * Creates authentic Danish Vimpel texture (long ribbon pennant)
- * Top half red (#c8102e), bottom half white (#ffffff).
+ * Dannebrogsvimpel: red field with a white Nordic cross near the mast.
  */
 function createVimpelTexture(): THREE.Texture {
   if (typeof document === 'undefined') {
@@ -61,13 +60,14 @@ function createVimpelTexture(): THREE.Texture {
   canvas.height = 32;
   const ctx = canvas.getContext('2d')!;
 
-  // Top half: red
+  // Red field across the entire pennant.
   ctx.fillStyle = '#c8102e';
-  ctx.fillRect(0, 0, canvas.width, 16);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Bottom half: white
+  // The long arm follows the taper; the short arm sits close to the hoist.
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 16, canvas.width, 16);
+  ctx.fillRect(0, 13, canvas.width, 6);
+  ctx.fillRect(24, 0, 6, canvas.height);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -387,7 +387,7 @@ export function createGistrupHouses(): GistrupHouses {
     hGroup.rotation.y = rotY;
 
     // 1. Fundament / flisebase
-    const baseGeo = new THREE.BoxGeometry(12.5, 0.14, 15.6);
+    const baseGeo = new THREE.BoxGeometry(12.5, 0.14, 19.2);
     const baseMesh = new THREE.Mesh(baseGeo, drivewayMat);
     baseMesh.position.set(0, 0.05, 0);
     baseMesh.receiveShadow = true;
@@ -406,8 +406,8 @@ export function createGistrupHouses(): GistrupHouses {
     const roofLenX = wingL + 0.50; // Udhæng for og bag
 
     const wingConfigs = [
-      { name: 'left-wing', centerZ: 3.6, isRightWing: false },
-      { name: 'right-wing', centerZ: -3.6, isRightWing: true },
+      { name: 'left-wing', centerZ: 5.4, isRightWing: false },
+      { name: 'right-wing', centerZ: -5.4, isRightWing: true },
     ];
 
     for (const wing of wingConfigs) {
@@ -524,8 +524,8 @@ export function createGistrupHouses(): GistrupHouses {
       }
     }
 
-    // 2. Samlende mellemstykke mellem de to gavle
-    const midW = 2.6;
+    // 2. Tværlængen fortsætter bag begge gavle til husets ydermure.
+    const midW = wingConfigs[0].centerZ - wingConfigs[1].centerZ + wingW;
     const midL = wingHalfL + 2.4; // 7.0m
     const midCenterX = (2.4 - wingHalfL) / 2; // -1.1m
 
@@ -610,7 +610,7 @@ export function createGistrupHouses(): GistrupHouses {
   }
 
   // Opbyg det autentiske nabohus (placeret på vestsiden med udsyn direkte til hækken)
-  buildAuthenticNeighborHouse(-15.2, 4.0, 0.12);
+  buildAuthenticNeighborHouse(-25.2, 2.0, 0.12);
 
   // Flagstang 1: Hvid haveflagstang med Dannebrog
   // Står frit på plænen med god afstand til nabohuset, tag og hæk
@@ -689,29 +689,15 @@ export function createGistrupHouses(): GistrupHouses {
   const dannebrogOrigPos = (dannebrogGeo.getAttribute('position') as THREE.BufferAttribute).clone();
 
   // ========================================================================
-  // 3. HUS 3 (Hvidpudset parcelhus, sortglaseret tag, SOLCELLER & VIMPEL)
-  // x ≈ -15.8, z ≈ -12.5 (Nordvest, mod sygehuset)
+  // Fritstående vimpel i sydvest, med luft mellem havens vartegn.
   // ========================================================================
-  buildDanishHouse({
-    name: 'gistrup-house-3',
-    x: -15.8,
-    z: -12.5,
-    rotY: -0.25,
-    width: 8.0,
-    length: 10.6,
-    wallHeight: 2.80,
-    roofHeight: 2.30,
-    wallMat: whitePlasterMat,
-    roofMat: blackGlazedRoofMat,
-    hasSolarPanels: true,
-  });
 
   // Flagstang 2: Haveflagstang med VIMPEL (oppe både dag og nat!)
-  // Står frit på plænen foran Hus 3 med god afstand til både tag og fliseterrasse
+  // Står frit på plænen sydvest for haven.
   const flagpole3Group = new THREE.Group();
   flagpole3Group.name = 'gistrup-flagpole-3';
-  const pole3X = -10.5;
-  const pole3Z = -10.5;
+  const pole3X = -14.5;
+  const pole3Z = 14.5;
   const pole3Height = 8.2;
   flagpole3Group.position.set(pole3X, 0, pole3Z);
   flagpole3Group.rotation.y = 0.45; // Vinkles mod haven
@@ -752,7 +738,7 @@ export function createGistrupHouses(): GistrupHouses {
   flagpole3Group.add(pole3Knob);
 
   // VIMPEL (Danish long pennant)
-  // Tapered ribbon: width 2.2m, hoist height 0.24m tapering to 0.04m at tip
+  // Long pointed pennant, 2.4m long and 0.24m high at the mast.
   const vimpelLen = 2.4;
   const vimpelSegX = 20;
   const vimpelSegY = 4;
@@ -764,9 +750,9 @@ export function createGistrupHouses(): GistrupHouses {
   for (let i = 0; i < vimpelPosAttr.count; i++) {
     const vx = vimpelPosAttr.getX(i);
     const vy = vimpelPosAttr.getY(i);
-    const frac = vx / vimpelLen; // 0 to 1
+    const frac = THREE.MathUtils.clamp(vx / vimpelLen, 0, 1);
     // Taper height
-    const scaleY = (1.0 - frac * 0.82);
+    const scaleY = 1.0 - frac;
     vimpelPosAttr.setY(i, vy * scaleY);
   }
   vimpelGeo.computeVertexNormals();
@@ -823,7 +809,9 @@ export function createGistrupHouses(): GistrupHouses {
         for (let i = 0; i < dPos.count; i++) {
           const bx = dannebrogOrigPos.getX(i);
           const by = dannebrogOrigPos.getY(i);
-          const u = bx / flagW; // 0 at hoist, 1 at fly
+          // Float32 translation can leave the mast edge slightly below zero.
+          // Fractional powers of a negative value would produce NaN.
+          const u = THREE.MathUtils.clamp(bx / flagW, 0, 1);
 
           // Flapping traveling waves
           const wave1 = Math.sin(windTime * 5.2 + u * 4.8);
@@ -846,7 +834,7 @@ export function createGistrupHouses(): GistrupHouses {
       for (let i = 0; i < vPos.count; i++) {
         const vx = vimpelOrigPos.getX(i);
         const vy = vimpelOrigPos.getY(i);
-        const u = vx / vimpelLen; // 0 at mast, 1 at tip
+        const u = THREE.MathUtils.clamp(vx / vimpelLen, 0, 1);
 
         // Fast rippling ribbon wave
         const wave1 = Math.sin(windTime * 6.8 + u * 7.6);

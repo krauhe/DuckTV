@@ -41,6 +41,9 @@ export class CameraFollow {
     if(this.held || now-this.lastManual<FOLLOW_CAMERA.idleSeconds || !ducks.length)return false;
     if(!Number.isFinite(dt)||dt<=0)return true;
     dt=Math.min(dt,.05);
+    // Flock view leaves room for the garden; selecting one duck keeps its close-up.
+    const wideView=ducks.length>1;
+    const framingZoom=wideView?.85:1;
     if(now-this.lastUpdate>.25)this.reset();
     this.lastUpdate=now;
     this.rawCentre.set(0,.65,0);
@@ -60,15 +63,15 @@ export class CameraFollow {
     this.rawCentre.z=MathUtils.clamp(this.rawCentre.z,GARDEN.minZ+.7,GARDEN.maxZ-.7);
     let radius=0;
     for(const d of ducks)radius=Math.max(radius,Math.hypot(d.x-this.rawCentre.x,d.z-this.rawCentre.z));
-    const response=1-Math.exp(-dt/(hunting?.45:FOLLOW_CAMERA.centreSeconds));
+    const response=1-Math.exp(-dt/(hunting?.45:FOLLOW_CAMERA.centreSeconds*(wideView?2:1)));
     if(!this.initialized){this.centre.copy(this.rawCentre);this.radius=radius;this.initialized=true;}
     else {this.centre.lerp(this.rawCentre,response);this.radius+=(radius-this.radius)*response;}
-    const desiredDistance=Math.max(3,this.radius+FOLLOW_CAMERA.clearance);
+    const desiredDistance=wideView?Math.max(5,this.radius+3.2):Math.max(3,this.radius+FOLLOW_CAMERA.clearance);
     const current=camera.position;
     const error=Math.abs(Math.hypot(current.x-this.centre.x,current.z-this.centre.z)-desiredDistance);
     const crowded=ducks.some(d=>Math.hypot(current.x-d.x,current.z-d.z)<FOLLOW_CAMERA.clearance);
-    if(crowded||error>FOLLOW_CAMERA.moveStart)this.moving=true;
-    else if(error<FOLLOW_CAMERA.moveStop)this.moving=false;
+    if(crowded||error>(wideView?.7:FOLLOW_CAMERA.moveStart))this.moving=true;
+    else if(error<(wideView?.25:FOLLOW_CAMERA.moveStop))this.moving=false;
     // Safety uses the live birds, never the delayed/filtered flock position.
     const safeSegment=(end:Vector3)=>{
       const dx=end.x-current.x,dz=end.z-current.z,len=dx*dx+dz*dz;
@@ -103,7 +106,7 @@ export class CameraFollow {
     else this.velocity.set(0,0,0);
     // Look gently towards the group even if there is no safe route closer.
     const gap=target.distanceTo(this.centre);
-    if(gap>FOLLOW_CAMERA.lookStart)this.looking=true;
+    if(gap>(wideView?.45:FOLLOW_CAMERA.lookStart))this.looking=true;
     else if(gap<FOLLOW_CAMERA.lookStop)this.looking=false;
     if(this.looking)target.lerp(this.centre,Math.min(1-Math.exp(-dt/(hunting?.6:FOLLOW_CAMERA.aimSeconds)),(hunting?1.8:FOLLOW_CAMERA.lookSpeed)*dt/gap));
     camera.lookAt(target);
@@ -124,7 +127,8 @@ export class CameraFollow {
       // as the bird runs towards the fly or the fly jitters.
       this.huntZoom=Math.min(this.huntZoom,MathUtils.clamp(fit,Math.max(.45,tan/Math.tan(MathUtils.degToRad(60))),1));
     }
-    if(!hunting)this.huntZoom=1;
+    if(!hunting)this.huntZoom=framingZoom;
+    else this.huntZoom=Math.min(this.huntZoom,framingZoom);
     const zoom=camera.zoom+(this.huntZoom-camera.zoom)*(1-Math.exp(-dt/(hunting?.55:3)));
     if(Math.abs(zoom-camera.zoom)>1e-6){camera.zoom=zoom;camera.updateProjectionMatrix();}
     return true;

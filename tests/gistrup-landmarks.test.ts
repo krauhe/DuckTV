@@ -10,6 +10,22 @@ import { createGistrupHouses } from '../src/gistrup-houses';
 import { createFootprints } from '../src/footprints';
 import { createEnvironment } from '../src/environment';
 
+test('animated flags keep finite vertices and bounds at the mast edge', () => {
+  const houses = createGistrupHouses();
+  houses.setDaylight(30);
+  for (const wind of [0, 0.5, 2]) {
+    houses.update(1.25, wind, 0.05);
+    for (const name of ['dannebrog-flag', 'vimpel-flag']) {
+      const flag = houses.group.getObjectByName(name) as THREE.Mesh;
+      assert.ok(flag, name);
+      const positions = flag.geometry.getAttribute('position');
+      assert.ok(Array.from(positions.array).every(Number.isFinite), `${name}: finite vertices`);
+      flag.geometry.computeBoundingSphere();
+      assert.ok(Number.isFinite(flag.geometry.boundingSphere!.radius), `${name}: finite bounds`);
+    }
+  }
+});
+
 test('Gistrup landmarks exist and are positioned outside garden boundaries in all directions', () => {
   const scene = new THREE.Scene();
   const castle = createGistrupCastle();
@@ -255,18 +271,18 @@ test('house bargeboards sit cleanly on the gable verge and do not cut across roo
   }
 });
 
-test('Gistrup Kirke features iconic white bell tower, royal blue entrance door, and dark cross', () => {
+test('Gistrup Kirke retains its white bell tower and cross without the blue door', () => {
   const church = createGistrupChurch();
   const box = new THREE.Box3().setFromObject(church.group);
 
   // Tower summit reaches ~15m
   assert.ok(box.max.y >= 14.5, `church tower peak (${box.max.y.toFixed(2)}m) rises to ~15m`);
 
-  // Verify blue entrance door and cross exist by object name
+  // The removed door must not reappear; the tower cross remains.
   const blueDoor = church.group.getObjectByName('gistrup-church-blue-door');
   const cross = church.group.getObjectByName('gistrup-church-cross');
 
-  assert.ok(blueDoor, 'iconic royal blue church entrance door exists');
+  assert.equal(blueDoor, undefined, 'blue church door is removed');
   assert.ok(cross, 'dark metal cross on tower summit exists');
 });
 
@@ -322,8 +338,7 @@ test('flagpoles stand freestanding on lawns and do not pierce house roofs or wal
 
   // Verify that the flagpole positions do not fall inside any house footprint or roof
   const houseConfigs = [
-    { name: 'gistrup-house-1', x: -15.2, z: 4.0, rotY: 0.12, roofHalfW: 5.2, roofHalfL: 7.2 },
-    { name: 'gistrup-house-3', x: -15.8, z: -12.5, rotY: -0.25, roofHalfW: 4.5, roofHalfL: 5.8 },
+    { name: 'gistrup-house-1', x: -25.2, z: 2.0, rotY: 0.12, roofHalfW: 5.2, roofHalfL: 9.0 },
   ];
 
   for (const pole of [pole1, pole3]) {

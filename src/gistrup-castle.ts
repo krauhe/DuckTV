@@ -24,7 +24,7 @@ export interface GistrupCastle {
 export function createGistrupCastle(): GistrupCastle {
   const group = new THREE.Group();
   group.name = 'gistrup-castle';
-  group.position.set(15.0, 0, -15.5);
+  group.position.set(24.0, 0, -22.0);
   group.rotation.y = -0.42;
 
   // -------------------------------------------------------------

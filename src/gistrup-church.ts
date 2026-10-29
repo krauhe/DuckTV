@@ -17,7 +17,7 @@ export interface GistrupChurch {
  * - Højre fløj (kirkerummet): pulttag der skråner mod højre, med en markant
  *   høj sprossevinduessøjle ved tårnet, og et kampestensdige/stengærde ved soklen.
  * - Venstre fløj (indgang & menighedslokaler): pulttag med den karakteristiske
- *   kongeblå indgangsdør og vinduesbånd.
+ *   vinduesbånd ved indgangspartiet.
  * - Brolagt forplads med rundgang og bøgehæk jvf. brugerens referencefotos.
  */
 export function createGistrupChurch(): GistrupChurch {
@@ -25,10 +25,10 @@ export function createGistrupChurch(): GistrupChurch {
   group.name = 'gistrup-church';
 
   // Placering mod Syd:
-  // x ≈ -2.0, y = 0, z ≈ 27.0
-  const baseX = -2.0;
+  // x = -4, y = 0, z = 34
+  const baseX = -4.0;
   const baseY = 0.0;
-  const baseZ = 27.0;
+  const baseZ = 34.0;
   group.position.set(baseX, baseY, baseZ);
 
   // ========================================================================
@@ -48,13 +48,6 @@ export function createGistrupChurch(): GistrupChurch {
     color: roofBaseColor.clone(),
     roughness: 0.68,
     metalness: 0.22,
-  });
-
-  // Den karakteristiske kongeblå kirkedør (jvf. fotoet)
-  const blueDoorMat = new THREE.MeshStandardMaterial({
-    color: 0x1b58a2,
-    roughness: 0.52,
-    metalness: 0.06,
   });
 
   // Sorte aluminiums-vinduesrammer, sprosser og sternlister
@@ -341,7 +334,7 @@ export function createGistrupChurch(): GistrupChurch {
   hedgeGeos.push(dikeHedge);
 
   // =============================================================
-  // 4. VENSTRE FLØJ (Indgangsparti med kongeblå dør & sognegård)
+  // 4. VENSTRE FLØJ (Indgangsparti & sognegård)
   // Jvf. fotoet: Pulttag skråner ned mod venstre
   // =============================================================
   const leftStartX = -tW / 2; // -1.50
@@ -380,29 +373,7 @@ export function createGistrupChurch(): GistrupChurch {
   leftSnow.translate(leftStartX - leftW / 2 - 0.12, (leftRidgeH + leftEavesH) / 2 + 0.17, leftD / 2);
   snowGeos.push(leftSnow);
 
-  // DEN KONGEBLÅ KIRKEDØR (Gistrup Kirkes velkendte signatur jvf. fotoet!)
-  const doorW = 1.25;
-  const doorH = 2.40;
-  const doorX = leftStartX - 0.95;
-  const doorZ = 0.04;
-
-  const blueDoorMesh = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.08), blueDoorMat);
-  blueDoorMesh.name = 'gistrup-church-blue-door';
-  blueDoorMesh.position.set(doorX, doorH / 2 + 0.05, doorZ);
-  blueDoorMesh.castShadow = true;
-  group.add(blueDoorMesh);
-
-  // Dørramme i mørk profil
-  const doorFrame = new THREE.BoxGeometry(doorW + 0.14, doorH + 0.14, 0.06);
-  doorFrame.translate(doorX, doorH / 2 + 0.05, doorZ);
-  frameGeos.push(doorFrame);
-
-  // Dørgreb i stål
-  const handleGeo = new THREE.BoxGeometry(0.04, 0.35, 0.06);
-  handleGeo.translate(doorX + doorW / 2 - 0.15, 1.05, doorZ + 0.06);
-  frameGeos.push(handleGeo);
-
-  // Højloftet glasfelt over og til venstre for døren
+  // Højloftet glasfelt ved indgangspartiet
   const clereW = 2.6;
   const clereH = 2.8;
   const clereX = leftStartX - 2.8;

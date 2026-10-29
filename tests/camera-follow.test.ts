@@ -28,7 +28,7 @@ test('a new offscreen fly widens the view before the duck reaches it, holds and 
   for(let i=120;i<210;i++)follow.update(1/60,i/60,camera,target,ducks);
   assert.ok(camera.zoom<=wide+1e-8,'keeps the wide view after the catch');
   for(let i=210;i<1200;i++)follow.update(1/60,i/60,camera,target,ducks);
-  assert.ok(camera.zoom>.99,'gradually returns to ordinary framing');
+  assert.ok(Math.abs(camera.zoom-.85)<.01,'gradually returns to the wider garden framing');
   follow.manual(21,true);const zoom=camera.zoom,aim=target.clone();ducks[0].insect={x:-4,z:0};
   assert.equal(follow.update(.05,22,camera,target,ducks),false);
   assert.equal(camera.zoom,zoom);assert.deepEqual(target,aim);
