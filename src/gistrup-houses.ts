@@ -272,84 +272,6 @@ export function createGistrupHouses(): GistrupHouses {
     roofRight.receiveShadow = true;
     hGroup.add(roofRight);
 
-    // Hvide vindskeder (bargeboards) og vinkelkrop (L-shape) jvf. brugerens uploadede foto!
-    if (cfg.isPhotoStyle) {
-      const bLen = slopeLen + 0.08;
-      const bW = 0.08;
-      const bH = roofThick + 0.04;
-      // Vindskeder monteres på gavlens yderkant af tagudhænget, så de indrammer gavlen rent uden at skære igennem teglene
-      for (const zSign of [-1, 1]) {
-        for (const side of [-1, 1]) {
-          // På forgavlen mod haven (zSign = 1): kun den frie venstre side (side = -1)
-          // Højre side (side = 1) møder vinkelkroppen og skal ikke have en vindskede tværs over taget
-          if (zSign === 1 && side === 1) continue;
-
-          const board = new THREE.Mesh(new THREE.BoxGeometry(bLen, bH, bW), whiteTrimMat);
-          board.name = 'gistrup-bargeboard';
-          const boardZ = zSign * (cfg.length / 2 + gableOverhang + bW / 2);
-          board.position.set(side * (cfg.width / 4 + 0.12), cfg.wallHeight + cfg.roofHeight / 2 - 0.01, boardZ);
-          board.rotation.z = side * -roofAngle;
-          board.castShadow = true;
-          hGroup.add(board);
-        }
-      }
-
-      // Vinkelkrop (vinkel-parcelhus jvf. fotoet)
-      const wingW = 5.4;
-      const wingL = 4.8;
-      const wingH = cfg.wallHeight;
-      const wingRoofH = cfg.roofHeight * 0.94;
-      const wingGableOverhang = 0.22;
-      const wingRoofLenX = wingL + wingGableOverhang;
-      const wingStartX = cfg.width / 2;
-      const wingRoofCenterX = wingStartX + wingRoofLenX / 2;
-      const wingOffsetZ = cfg.length / 2 - wingW / 2;
-
-      // Mur (gule mursten)
-      const wingWall = new THREE.Mesh(new THREE.BoxGeometry(wingL, wingH, wingW), cfg.wallMat);
-      wingWall.position.set(wingStartX + wingL / 2, wingH / 2, wingOffsetZ);
-      wingWall.castShadow = true;
-      hGroup.add(wingWall);
-
-      // Hvid gavl på vinkelkroppen mod haven
-      const wGableShape = new THREE.Shape();
-      wGableShape.moveTo(-wingW / 2, 0);
-      wGableShape.lineTo(wingW / 2, 0);
-      wGableShape.lineTo(0, wingRoofH);
-      wGableShape.closePath();
-      const wGableGeo = new THREE.ExtrudeGeometry(wGableShape, { depth: 0.22, bevelEnabled: false });
-      wGableGeo.rotateY(Math.PI / 2);
-      const wGableMesh = new THREE.Mesh(wGableGeo, whiteTrimMat);
-      wGableMesh.position.set(wingStartX + wingL - 0.22, wingH, wingOffsetZ);
-      wGableMesh.castShadow = true;
-      hGroup.add(wGableMesh);
-
-      // Vinkelkroppens sadeltag i orange tegl
-      const wSlopeLen = Math.hypot(wingW / 2 + 0.35, wingRoofH) + 0.12;
-      const wRoofAngle = Math.atan2(wingRoofH, wingW / 2);
-      for (const zSign of [-1, 1]) {
-        const wRoofSlope = new THREE.Mesh(new THREE.BoxGeometry(wingRoofLenX, 0.15, wSlopeLen), cfg.roofMat);
-        wRoofSlope.position.set(wingRoofCenterX, wingH + wingRoofH / 2, wingOffsetZ + zSign * (wingW / 4 + 0.08));
-        wRoofSlope.rotation.x = zSign * wRoofAngle;
-        wRoofSlope.castShadow = true;
-        hGroup.add(wRoofSlope);
-
-        // Hvide vindskeder (sternbrædder) på vinkelkroppens ydre gavl mod haven
-        const wBoard = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, wSlopeLen + 0.08), whiteTrimMat);
-        wBoard.name = 'gistrup-bargeboard';
-        wBoard.position.set(wingStartX + wingRoofLenX + 0.04, wingH + wingRoofH / 2 - 0.01, wingOffsetZ + zSign * (wingW / 4 + 0.08));
-        wBoard.rotation.x = zSign * wRoofAngle;
-        wBoard.castShadow = true;
-        hGroup.add(wBoard);
-
-        // Snelag på vinkelkroppens tag
-        const wSnow = new THREE.Mesh(new THREE.BoxGeometry(wingRoofLenX * 0.98, 0.08, wSlopeLen * 0.98), snowMat);
-        wSnow.position.set(wingRoofCenterX, wingH + wingRoofH / 2 + 0.07, wingOffsetZ + zSign * (wingW / 4 + 0.08));
-        wSnow.rotation.x = zSign * wRoofAngle;
-        hGroup.add(wSnow);
-      }
-    }
-
     // Snow overlay on roofs
     const snowSlopeGeo = new THREE.BoxGeometry(slopeLen * 0.98, 0.08, roofLenZ * 0.98);
     const snowLeft = new THREE.Mesh(snowSlopeGeo, snowMat);
@@ -453,49 +375,249 @@ export function createGistrupHouses(): GistrupHouses {
   }
 
   // ========================================================================
-  // 1. HUS 1 (Hasselvej 28-stil jvf. brugerens foto: Gule mursten, hvide gavle
-  // & vindskeder, orange tegltag med vinkelkrop og rød murstensskorsten)
-  // x ≈ -14.5, z ≈ 8.5 (Sydvest, peger direkte frem mod hækken jvf. fotoet)
+  // 1. NABOHUSET (Autentisk nabohus jvf. havebillederne)
+  // To hvide gavle med hvide sternbrædder mod haven, samlende rødt tagstykke,
+  // vinduesbånd og teglskorsten bag højre gavl, gule mursten.
+  // Erstatter de tidligere generiske huse på vestsiden.
   // ========================================================================
-  buildDanishHouse({
-    name: 'gistrup-house-1',
-    x: -14.5,
-    z: 8.5,
-    rotY: 0.20,
-    width: 7.8,
-    length: 11.2,
-    wallHeight: 2.75,
-    roofHeight: 2.25,
-    wallMat: yellowBrickMat,
-    roofMat: orangeTileRoofMat,
-    hasChimney: true,
-    isPhotoStyle: true,
-  });
+  function buildAuthenticNeighborHouse(posX: number, posZ: number, rotY: number): void {
+    const hGroup = new THREE.Group();
+    hGroup.name = 'gistrup-house-1';
+    hGroup.position.set(posX, 0, posZ);
+    hGroup.rotation.y = rotY;
 
-  // ========================================================================
-  // 2. HUS 2 (Klassisk rød murstensvilla med haveflagstang & DANNEBROG)
-  // x ≈ -17.5, z ≈ 0.5 (Vest)
-  // ========================================================================
-  buildDanishHouse({
-    name: 'gistrup-house-2',
-    x: -17.5,
-    z: 0.5,
-    rotY: 0.05,
-    width: 8.2,
-    length: 10.8,
-    wallHeight: 2.85,
-    roofHeight: 2.35,
-    wallMat: redBrickMat,
-    roofMat: orangeTileRoofMat,
-    hasChimney: true,
-  });
+    // 1. Fundament / flisebase
+    const baseGeo = new THREE.BoxGeometry(12.5, 0.14, 15.6);
+    const baseMesh = new THREE.Mesh(baseGeo, drivewayMat);
+    baseMesh.position.set(0, 0.05, 0);
+    baseMesh.receiveShadow = true;
+    hGroup.add(baseMesh);
+
+    // Dimensioner for de to fløje: Venstre fløj (syd / +Z) og Højre fløj (nord / -Z)
+    const wingW = 5.6;
+    const wingHalfW = wingW / 2; // 2.8m
+    const wingL = 9.2;
+    const wingHalfL = wingL / 2; // 4.6m
+    const wallH = 2.75;
+    const roofH = 2.20;
+    const roofPitch = Math.atan2(roofH, wingHalfW);
+    const roofSlopeLen = Math.hypot(wingHalfW + 0.38, roofH) + 0.15;
+    const roofThick = 0.16;
+    const roofLenX = wingL + 0.50; // Udhæng for og bag
+
+    const wingConfigs = [
+      { name: 'left-wing', centerZ: 3.6, isRightWing: false },
+      { name: 'right-wing', centerZ: -3.6, isRightWing: true },
+    ];
+
+    for (const wing of wingConfigs) {
+      // Facademure (gule mursten)
+      const wallMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(wingL, wallH, wingW),
+        yellowBrickMat
+      );
+      wallMesh.position.set(0, wallH / 2, wing.centerZ);
+      wallMesh.castShadow = true;
+      wallMesh.receiveShadow = true;
+      hGroup.add(wallMesh);
+
+      // Forgavl mod haven (x = +wingHalfL):
+      // Autentisk hvid trekantgavl jvf. havebillederne
+      const gableShape = new THREE.Shape();
+      gableShape.moveTo(-wingHalfW, 0);
+      gableShape.lineTo(wingHalfW, 0);
+      gableShape.lineTo(0, roofH);
+      gableShape.closePath();
+
+      const frontGableGeo = new THREE.ExtrudeGeometry(gableShape, { depth: 0.22, bevelEnabled: false });
+      frontGableGeo.rotateY(Math.PI / 2);
+      const frontGable = new THREE.Mesh(frontGableGeo, whiteTrimMat);
+      frontGable.position.set(wingHalfL - 0.22, wallH, wing.centerZ);
+      frontGable.castShadow = true;
+      hGroup.add(frontGable);
+
+      // Baggavl (vender væk fra haven mod -X)
+      const backGableGeo = frontGableGeo.clone();
+      backGableGeo.rotateY(Math.PI);
+      const backGable = new THREE.Mesh(backGableGeo, whiteTrimMat);
+      backGable.position.set(-wingHalfL + 0.22, wallH, wing.centerZ);
+      backGable.castShadow = true;
+      hGroup.add(backGable);
+
+      // Sadeltag i orange/røde tegl
+      for (const zSign of [-1, 1]) {
+        const roofSlope = new THREE.Mesh(
+          new THREE.BoxGeometry(roofLenX, roofThick, roofSlopeLen),
+          orangeTileRoofMat
+        );
+        roofSlope.position.set(0, wallH + roofH / 2, wing.centerZ + zSign * (wingHalfW / 2 + 0.12));
+        roofSlope.rotation.x = zSign * roofPitch;
+        roofSlope.castShadow = true;
+        roofSlope.receiveShadow = true;
+        hGroup.add(roofSlope);
+
+        // Snelag på taget
+        const snowSlope = new THREE.Mesh(
+          new THREE.BoxGeometry(roofLenX * 0.98, 0.08, roofSlopeLen * 0.98),
+          snowMat
+        );
+        snowSlope.position.set(0, wallH + roofH / 2 + 0.07, wing.centerZ + zSign * (wingHalfW / 2 + 0.12));
+        snowSlope.rotation.x = zSign * roofPitch;
+        hGroup.add(snowSlope);
+
+        // Hvide sternbrædder (vindskeder / bargeboards) på forgavlen
+        const bW = 0.08;
+        const bH = roofThick + 0.06;
+        const frontBoard = new THREE.Mesh(
+          new THREE.BoxGeometry(bW, bH, roofSlopeLen + 0.06),
+          whiteTrimMat
+        );
+        frontBoard.name = 'gistrup-bargeboard';
+        frontBoard.position.set(wingHalfL + 0.26, wallH + roofH / 2 - 0.01, wing.centerZ + zSign * (wingHalfW / 2 + 0.12));
+        frontBoard.rotation.x = zSign * roofPitch;
+        frontBoard.castShadow = true;
+        hGroup.add(frontBoard);
+
+        // Vindskeder på baggavlen
+        const backBoard = new THREE.Mesh(
+          new THREE.BoxGeometry(bW, bH, roofSlopeLen + 0.06),
+          whiteTrimMat
+        );
+        backBoard.name = 'gistrup-bargeboard';
+        backBoard.position.set(-wingHalfL - 0.26, wallH + roofH / 2 - 0.01, wing.centerZ + zSign * (wingHalfW / 2 + 0.12));
+        backBoard.rotation.x = zSign * roofPitch;
+        backBoard.castShadow = true;
+        hGroup.add(backBoard);
+      }
+
+      // Vinduer og skorsten på højre fløj (synlige over hækken)
+      if (wing.isRightWing) {
+        // Hvidt vinduesparti under gavlen, lige over hækniveau
+        const winW = 3.6;
+        const winH = 1.15;
+        const frameGeo = new THREE.BoxGeometry(0.12, winH, winW);
+        const winFrame = new THREE.Mesh(frameGeo, whiteTrimMat);
+        winFrame.position.set(wingHalfL + 0.02, 1.85, wing.centerZ);
+        hGroup.add(winFrame);
+
+        // 3 vinduesruder
+        const paneW = (winW - 0.24) / 3;
+        const paneGeo = new THREE.BoxGeometry(0.04, winH - 0.14, paneW - 0.06);
+        for (let p = 0; p < 3; p++) {
+          const pZ = (p - 1) * paneW;
+          const paneMat = p === 1 ? darkWindowMat : litWindowMat;
+          const pane = new THREE.Mesh(paneGeo, paneMat);
+          pane.position.set(0.05, 0, pZ);
+          winFrame.add(pane);
+        }
+
+        // Gul teglskorsten der rager op bagved højre gavl
+        const chimneyGeo = new THREE.BoxGeometry(0.85, 1.80, 0.85);
+        const chimneyMesh = new THREE.Mesh(chimneyGeo, yellowBrickMat);
+        chimneyMesh.position.set(1.4, wallH + roofH * 0.75, wing.centerZ + 0.35);
+        chimneyMesh.castShadow = true;
+        hGroup.add(chimneyMesh);
+
+        const chimTop = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.14, 1.0), drivewayMat);
+        chimTop.position.set(0, 0.95, 0);
+        chimneyMesh.add(chimTop);
+      }
+    }
+
+    // 2. Samlende mellemstykke mellem de to gavle
+    const midW = 2.6;
+    const midL = wingHalfL + 2.4; // 7.0m
+    const midCenterX = (2.4 - wingHalfL) / 2; // -1.1m
+
+    const midWall = new THREE.Mesh(
+      new THREE.BoxGeometry(midL, wallH, midW),
+      yellowBrickMat
+    );
+    midWall.position.set(midCenterX, wallH / 2, 0);
+    midWall.castShadow = true;
+    hGroup.add(midWall);
+
+    // Samlende tagstykke i tegl
+    const midRoofLenX = midL + 0.30;
+    const midRoofW = midW + 0.40;
+    const midRoofH = roofH * 0.85;
+    const midSlopeLen = Math.hypot(midRoofLenX / 2, midRoofH);
+    const midRoofAngle = Math.atan2(midRoofH, midRoofLenX / 2);
+
+    const midFrontSlope = new THREE.Mesh(
+      new THREE.BoxGeometry(midSlopeLen, roofThick, midRoofW),
+      orangeTileRoofMat
+    );
+    midFrontSlope.position.set(midCenterX + midRoofLenX / 4, wallH + midRoofH / 2, 0);
+    midFrontSlope.rotation.z = -midRoofAngle;
+    midFrontSlope.castShadow = true;
+    midFrontSlope.receiveShadow = true;
+    hGroup.add(midFrontSlope);
+
+    const midBackSlope = new THREE.Mesh(
+      new THREE.BoxGeometry(midSlopeLen, roofThick, midRoofW),
+      orangeTileRoofMat
+    );
+    midBackSlope.position.set(midCenterX - midRoofLenX / 4, wallH + midRoofH / 2, 0);
+    midBackSlope.rotation.z = midRoofAngle;
+    midBackSlope.castShadow = true;
+    midBackSlope.receiveShadow = true;
+    hGroup.add(midBackSlope);
+
+    // Snelag på mellemtag
+    const midFrontSnow = new THREE.Mesh(
+      new THREE.BoxGeometry(midSlopeLen * 0.98, 0.08, midRoofW * 0.98),
+      snowMat
+    );
+    midFrontSnow.position.set(midCenterX + midRoofLenX / 4, wallH + midRoofH / 2 + 0.07, 0);
+    midFrontSnow.rotation.z = -midRoofAngle;
+    hGroup.add(midFrontSnow);
+
+    const midBackSnow = new THREE.Mesh(
+      new THREE.BoxGeometry(midSlopeLen * 0.98, 0.08, midRoofW * 0.98),
+      snowMat
+    );
+    midBackSnow.position.set(midCenterX - midRoofLenX / 4, wallH + midRoofH / 2 + 0.07, 0);
+    midBackSnow.rotation.z = midRoofAngle;
+    hGroup.add(midBackSnow);
+
+    // Hvid stern langs mellemstykkets forreste tagkant
+    const midFascia = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, roofThick + 0.06, midW + 0.20),
+      whiteTrimMat
+    );
+    midFascia.name = 'gistrup-bargeboard';
+    midFascia.position.set(2.4 + 0.16, wallH + 0.02, 0);
+    midFascia.castShadow = true;
+    hGroup.add(midFascia);
+
+    // Vinduesparti på mellemstykket
+    const midWinFrame = new THREE.Mesh(
+      new THREE.BoxGeometry(0.10, 1.25, 1.60),
+      whiteTrimMat
+    );
+    midWinFrame.position.set(2.4 + 0.02, 1.60, 0);
+    const midGlass = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.48, 1.13),
+      litWindowMat
+    );
+    midGlass.rotation.y = Math.PI / 2;
+    midGlass.position.set(0.06, 0, 0);
+    midWinFrame.add(midGlass);
+    hGroup.add(midWinFrame);
+
+    group.add(hGroup);
+  }
+
+  // Opbyg det autentiske nabohus (placeret på vestsiden med udsyn direkte til hækken)
+  buildAuthenticNeighborHouse(-15.2, 4.0, 0.12);
 
   // Flagstang 1: Hvid haveflagstang med Dannebrog
-  // Står frit på plænen foran Hus 2 med god afstand til både tag, fliser og hæk
+  // Står frit på plænen med god afstand til nabohuset, tag og hæk
   const flagpole1Group = new THREE.Group();
   flagpole1Group.name = 'gistrup-flagpole-1';
-  const pole1X = -11.0;
-  const pole1Z = 0.5;
+  const pole1X = -8.2;
+  const pole1Z = -2.8;
   const poleHeight = 8.6;
   flagpole1Group.position.set(pole1X, 0, pole1Z);
   flagpole1Group.rotation.y = 0.52; // Vinklet så Dannebrog ses flot bredsidet fra haven
