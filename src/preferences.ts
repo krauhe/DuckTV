@@ -4,7 +4,7 @@ export interface Preferences {
  minutes:number|null;quality:'auto'|'low'|'high';autoFollow:boolean;sound:boolean;soundVolume?:number;music:boolean;showBehavior:boolean;showFps?:boolean;cap30Fps?:boolean;dof?:boolean;
 }
 export const PREFERENCES_KEY='ducktv.preferences.v1';
-export const DEFAULT_PREFERENCES:Preferences={weather:'live',timeMode:'live',minutes:null,quality:'auto',autoFollow:true,sound:false,soundVolume:0,music:true,showBehavior:false,showFps:false,cap30Fps:true,dof:true};
+export const DEFAULT_PREFERENCES:Preferences={weather:'live',timeMode:'live',minutes:null,quality:'auto',autoFollow:true,sound:true,soundVolume:.75,music:true,showBehavior:false,showFps:false,cap30Fps:true,dof:true};
 export function readPreferences(storage:Pick<Storage,'getItem'>):Preferences{
  const result={...DEFAULT_PREFERENCES};
  try{
