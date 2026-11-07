@@ -59,3 +59,20 @@ Thumbs.db
 
 # Background track selected for Ande TV.
 !public/audio/music/Tropical-Pixel-Lounge.mp3
+
+# Original recordings stay private. Only the selected playback clips are published.
+sound/
+sounds/
+!public/audio/effects/birds.wav
+!public/audio/effects/call1.wav
+!public/audio/effects/call2.wav
+!public/audio/effects/call3.wav
+!public/audio/effects/call4.wav
+!public/audio/effects/chat.wav
+!public/audio/effects/helicopter.wav
+!public/audio/effects/rain.wav
+!public/audio/effects/splash.wav
+!public/audio/effects/swim.wav
+!public/audio/effects/water.wav
+!public/audio/effects/wind.wav
+!public/audio/effects/wings.wav

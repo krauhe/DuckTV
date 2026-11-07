@@ -1,21 +1,25 @@
 import {getDaylight} from './daylight';
 export interface Preferences {
- weather:'live'|'sun'|'cloud'|'rain'|'frost'|'snow';timeMode:'live'|'manual'|'cycle';
- minutes:number|null;quality:'auto'|'low'|'high';autoFollow:boolean;sound:boolean;music:boolean;showBehavior:boolean;showFps?:boolean;cap30Fps?:boolean;dof?:boolean;
+ weather:'live'|'sun'|'cloud'|'wind'|'rain'|'frost'|'snow';timeMode:'live'|'manual'|'cycle';
+ minutes:number|null;quality:'auto'|'low'|'high';autoFollow:boolean;sound:boolean;soundVolume?:number;music:boolean;showBehavior:boolean;showFps?:boolean;cap30Fps?:boolean;dof?:boolean;
 }
 export const PREFERENCES_KEY='ducktv.preferences.v1';
-export const DEFAULT_PREFERENCES:Preferences={weather:'live',timeMode:'live',minutes:null,quality:'auto',autoFollow:true,sound:false,music:true,showBehavior:false,showFps:false,cap30Fps:true,dof:true};
+export const DEFAULT_PREFERENCES:Preferences={weather:'live',timeMode:'live',minutes:null,quality:'auto',autoFollow:true,sound:false,soundVolume:0,music:true,showBehavior:false,showFps:false,cap30Fps:true,dof:true};
 export function readPreferences(storage:Pick<Storage,'getItem'>):Preferences{
  const result={...DEFAULT_PREFERENCES};
  try{
   const value=JSON.parse(storage.getItem(PREFERENCES_KEY)??'null');
   if(!value||typeof value!=='object')return result;
-  if(['live','sun','cloud','rain','frost','snow'].includes(value.weather))result.weather=value.weather;
+  if(['live','sun','cloud','wind','rain','frost','snow'].includes(value.weather))result.weather=value.weather;
   if(['live','manual','cycle'].includes(value.timeMode))result.timeMode=value.timeMode;
   if(['auto','low','high'].includes(value.quality))result.quality=value.quality;
   if(typeof value.minutes==='number'&&Number.isFinite(value.minutes)&&value.minutes>=0&&value.minutes<1440)result.minutes=value.minutes;
   if(typeof value.autoFollow==='boolean')result.autoFollow=value.autoFollow;
-  if(typeof value.sound==='boolean')result.sound=value.sound;
+  // Preserve the old switch's muted state; the slider now owns both volume and on/off.
+  if(value.sound===true)result.soundVolume=.55;
+  if(typeof value.soundVolume==='number'&&Number.isFinite(value.soundVolume))result.soundVolume=Math.max(0,Math.min(1,value.soundVolume));
+  if(value.sound===false)result.soundVolume=0;
+  result.sound=(result.soundVolume??0)>0;
   if(typeof value.music==='boolean')result.music=value.music;
   if(typeof value.showBehavior==='boolean')result.showBehavior=value.showBehavior;
   if(typeof value.showFps==='boolean')result.showFps=value.showFps;

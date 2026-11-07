@@ -5,7 +5,7 @@ import { createDuck } from '../src/duck-model';
 import { Simulation } from '../src/simulation';
 import type { DuckPose } from '../src/types';
 
-test('walking ducks exhibit rhythmic body waddle including lateral sway and pelvic yaw', () => {
+test('upright runners transfer weight subtly without a separate oscillating pelvic yaw', () => {
   const model = createDuck('buff');
   const torso = model.group.getObjectByName('duck-torso')!;
   let minX = Infinity, maxX = -Infinity;
@@ -40,15 +40,15 @@ test('walking ducks exhibit rhythmic body waddle including lateral sway and pelv
 
   // Verify non-zero rhythmic lateral shift (waddle)
   const lateralRange = maxX - minX;
-  assert.ok(lateralRange > 0.015, `Torso should have a distinct lateral waddle, got range ${lateralRange}`);
+  assert.ok(lateralRange > .003 && lateralRange < .025, `Torso should have a distinct lateral waddle, got range ${lateralRange}`);
 
   // Verify non-zero pelvic yaw counter-oscillation
   const yawRange = maxYaw - minYaw;
-  assert.ok(yawRange > 0.03, `Torso should have rhythmic pelvic yaw during walking, got range ${yawRange}`);
+  assert.ok(yawRange < .001, `Pelvis must not have an independent yaw oscillator, got range ${yawRange}`);
 
   // Verify body roll
   const rollRange = maxRoll - minRoll;
-  assert.ok(rollRange > 0.04, `Torso should have natural roll during walking, got range ${rollRange}`);
+  assert.ok(rollRange > .006 && rollRange < .06, `Torso should have natural roll during walking, got range ${rollRange}`);
 });
 
 test('ducks anticipate heading changes with head-leads-body gaze direction', () => {

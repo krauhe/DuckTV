@@ -26,3 +26,7 @@ pnpm dev
 Bygget med TypeScript, Three.js og Vite. Kør `pnpm test` for tests og `pnpm build` for en produktionsbygning.
 
 Nattehimlen bruger [HYG-stjernekataloget](public/sky-credits.txt) og [Astronomy Engine](https://github.com/cosinekitty/astronomy).
+
+Lydeffekter styres med en slider under Indstillinger. Helt til venstre er lyden slået fra, og lydstyrken huskes. Musik har sin egen kontakt. Regn, blæst og fugle følger vejr og døgn; kontaktlyde, vandplask, vingebask og helikopter følger aktiviteterne. Browseren kræver et tryk eller tastetryk, før lyd kan starte.
+
+To ænder kan svømme efter hinanden i et fælles badeforløb på cirka 24,5 sekunder, afstemt med vand- og andeoptagelsen. Lyden afspilles én gang med blød ind- og udfadning. Bevægelsen fungerer også med lyden slukket, og ænderne reagerer fortsat på forstyrrelser. Originale optagelser i `sound/` og andre private referencer er Git-ignoreret; kun de udvalgte afspilningsklip i `public/audio/effects/` følger projektet.

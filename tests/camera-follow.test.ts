@@ -121,3 +121,19 @@ test('filter response remains consistent at different frame rates',()=>{
   assert.ok(result.target.distanceTo(reference.target)<.015);
  }
 });
+
+test('wide flock tour reaches every side without entering the shelter or approaching ducks',()=>{
+ const follow=new CameraFollow(),camera=new PerspectiveCamera(),target=new Vector3(0,.65,0);
+ camera.position.set(4.55,1.65,3.35);
+ const ducks=[{x:0,z:0},{x:.4,z:0},{x:0,z:.4},{x:-.4,z:-.4}];
+ const quadrants=new Set<string>();
+ for(let i=0;i<6000;i++){
+  const before=camera.position.clone();
+  follow.update(.05,i*.05,camera,target,ducks);
+  constrainGardenCamera(camera,target,before);
+  if(Math.abs(camera.position.x)>1&&Math.abs(camera.position.z)>1)quadrants.add(`${Math.sign(camera.position.x)},${Math.sign(camera.position.z)}`);
+  assert.ok(camera.position.distanceTo(before)<=FOLLOW_CAMERA.speed*.05+1e-8);
+  assert.ok(ducks.every(d=>Math.hypot(camera.position.x-d.x,camera.position.z-d.z)>=FOLLOW_CAMERA.clearance));
+ }
+ assert.equal(quadrants.size,4,'all background directions appear during a garden circuit');
+});

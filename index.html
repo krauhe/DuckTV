@@ -16,13 +16,15 @@
    <select id="time-mode" aria-label="Tidspunkt"><option value="live">Følg tiden i Gistrup</option><option value="manual">Vælg klokkeslæt</option><option value="cycle">Døgnforløb · 5 minutter</option></select>
    <div id="manual-time" hidden><label for="day-time">Klokken <output id="clock-label">--:--</output></label><input id="day-time" type="range" min="0" max="1439" step="1" value="720"/></div>
    <label for="weather">Vejrforhold</label>
-   <select id="weather" aria-label="Vejret i haven"><option value="live" selected>Følg vejret i Gistrup</option><option value="sun">Klart med lette skyer</option><option value="cloud">Overskyet</option><option value="rain">En stille regnbyge</option><option value="frost">Klar vinterdag med rimfrost</option><option value="snow">Snevejr og vinterdække</option></select>
+   <select id="weather" aria-label="Vejret i haven"><option value="live" selected>Følg vejret i Gistrup</option><option value="sun">Klart med lette skyer</option><option value="cloud">Overskyet</option><option value="wind">Blæsevejr</option><option value="rain">En stille regnbyge</option><option value="frost">Klar vinterdag med rimfrost</option><option value="snow">Snevejr og vinterdække</option></select>
    <p id="sun-times" class="settings-note"></p>
    <p id="weather-label" class="settings-note">En rolig dag</p>
    </section>
    <section><h2><span class="menu-picture duck-picture" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M9 24q3 4 10 3v-9a9 9 0 0 1 18 0v12q0 12-15 12T9 24Z"/><path class="duck-bill" d="m36 18 8 4-8 3"/><path class="picture-face" d="M30 17h.1M16 31q4 6 10 1"/></svg></span>Kamera &amp; Ænder</h2>
    <label class="switch-row" for="auto-follow"><span><span class="control-picture" aria-hidden="true">↝</span>Følg flokken</span><span class="switch-state" aria-hidden="true"></span><input id="auto-follow" type="checkbox" role="switch" checked/><span class="switch-track" aria-hidden="true"></span></label>
    <label class="switch-row" for="behavior-toggle"><span><span class="control-picture" aria-hidden="true">☷</span>Beskriv andeadfærd</span><span class="switch-state" aria-hidden="true"></span><input id="behavior-toggle" type="checkbox" role="switch"/><span class="switch-track" aria-hidden="true"></span></label>
+   <label for="effects-volume">Lydeffekter <output id="effects-volume-label">Fra</output></label><input id="effects-volume" type="range" min="0" max="100" step="1" value="0" aria-describedby="effects-note"/>
+   <p id="effects-note" class="settings-note" aria-live="polite" hidden></p>
    <label class="switch-row" for="music-toggle"><span><span class="control-picture" aria-hidden="true">♫</span>Musik</span><span class="switch-state" aria-hidden="true"></span><input id="music-toggle" type="checkbox" role="switch" aria-describedby="music-note"/><span class="switch-track" aria-hidden="true"></span></label>
    <p id="music-note" class="settings-note" aria-live="polite" hidden></p>
    <label class="switch-row" for="fullscreen"><span><span class="control-picture" aria-hidden="true">⛶</span>Fuld skærm</span><span class="switch-state" aria-hidden="true"></span><input id="fullscreen" type="checkbox" role="switch"/><span class="switch-track" aria-hidden="true"></span></label>

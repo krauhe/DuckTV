@@ -88,7 +88,8 @@ export function getDaylight(date: Date, minuteOverride?: number): Daylight {
     * (1 - smoothstep((minutes - sunset + 30) / 60));
   return {
     minutes, sunrise, sunset, light,
-    night: minutes < sunrise || minutes >= sunset - 15,
+    // Let the flock stay active through sunset and most of the evening twilight.
+    night: minutes < sunrise || minutes >= sunset + 20,
     dateLabel: `${String(local.day).padStart(2, '0')}.${String(local.month).padStart(2, '0')}.${local.year}`,
   };
 }

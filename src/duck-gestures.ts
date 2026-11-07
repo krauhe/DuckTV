@@ -1,6 +1,6 @@
 export type DuckGesture = 'wingFlap' | 'wingStretch' | 'tailWag';
 export interface GesturePose { kind: DuckGesture; progress: number; side: number; /** A response must not trigger another response. */ social?:boolean }
-export const GESTURE_SECONDS: Record<DuckGesture,number> = {wingFlap:3.8,wingStretch:3.2,tailWag:1.1};
+export const GESTURE_SECONDS: Record<DuckGesture,number> = {wingFlap:1.83786848,wingStretch:3.2,tailWag:1.1};
 const smooth=(x:number)=>{const t=Math.max(0,Math.min(1,x));return t*t*(3-2*t);};
 
 /** Bounded local clip time: starts/ends folded, independent of the global clock. */
@@ -12,7 +12,12 @@ export function gestureChannels(pose?:GesturePose){
   const envelope=smooth(t/.18)*smooth((1-t)/.22);
   if(pose.kind==='wingFlap'){
     result.left=result.right=envelope;
-    const phase=t*GESTURE_SECONDS.wingFlap*5*Math.PI*2;
+    // Energy peaks measured in the supplied wings.wav (20 ms RMS windows).
+    // Each audible impulse coincides with a downstroke, with recovery between.
+    const beats=[0,.05,.21,.59,.83,1.01,1.15,1.25,1.83786848];
+    const seconds=t*GESTURE_SECONDS.wingFlap;
+    let beat=0;while(beat<beats.length-2&&seconds>beats[beat+1])beat++;
+    const phase=(beat+(seconds-beats[beat])/(beats[beat+1]-beats[beat]))*Math.PI*2-Math.PI/2;
     result.stroke=Math.sin(phase)*envelope;
     // Body rises before the full stroke; forward sweep and elevation are
     // offset in phase so the wing traces an arc instead of a flat hinge.

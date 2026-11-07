@@ -572,7 +572,12 @@ export function createDuck(kind: DuckKind): {
   }
 
   let previousTime = 0;
-  let gaitPhase = 0;
+  let previousHeading=0,hasHeading=false;
+  const individuality=1+BLINK_OFFSETS[kind]*.035;
+  const headGaze=new Spring(0,1,230/individuality,30),neckGaze=new Spring(0,1,62/individuality,16);
+  const weightShift=new Spring(0,1,260,29);
+  let restBlend=0,moveBlend=0,breathBlend=0;
+  let nextBlink=1.8+BLINK_OFFSETS[kind],blinkStarted=-10,blinkCount=0;
   let paddlePhase = 0;
   let swimBlend = 0;
   let uprightBlend = 1;
@@ -614,8 +619,7 @@ export function createDuck(kind: DuckKind): {
   const boneDirection = new THREE.Vector3();
   const legOrigin = new THREE.Vector3();
   const kneePosition = new THREE.Vector3(), footLocal = new THREE.Vector3();
-  const rootPosition = new THREE.Vector3(), lastRootPosition = new THREE.Vector3();
-  let hasRootPosition = false;
+  const rootPosition = new THREE.Vector3();
   function placeBone(mesh: THREE.Mesh, from: THREE.Vector3, to: THREE.Vector3, radius: number) {
     boneDirection.copy(to).sub(from);
     mesh.position.copy(from).add(to).multiplyScalar(.5);
@@ -627,8 +631,9 @@ export function createDuck(kind: DuckKind): {
     const { state, time } = pose;
     const dt = Math.max(0, Math.min(.05, time - previousTime));
     previousTime = time;
-    const gape=(state==='chase'||state==='eat'||state==='guard')?THREE.MathUtils.clamp(pose.mouthOpen??0,0,1):state==='forage'?Math.max(0,Math.sin(time*16))*.08*pose.peck:0;
-    jaw.rotation.x+=(gape*.48-jaw.rotation.x)*(1-Math.exp(-dt*(gape>0?24:32)));
+    const gape=state==='sleep'?0:Math.max(THREE.MathUtils.clamp(pose.mouthOpen??0,0,1),state==='forage'?Math.max(0,Math.sin(time*16))*.08*pose.peck:0);
+    const jawTarget=gape*.48;
+    jaw.rotation.x+=(jawTarget-jaw.rotation.x)*(1-Math.exp(-dt*(jawTarget>jaw.rotation.x?24:32)));
     const forward=THREE.MathUtils.clamp(pose.accelerationForward??0,-3,3);
     const lateral=THREE.MathUtils.clamp(pose.accelerationSide??0,-3,3);
     const pitch=bodyPitch.step(forward*.06,dt),roll=bodyRoll.step(-lateral*.05,dt);
@@ -643,7 +648,8 @@ export function createDuck(kind: DuckKind): {
       billMat.roughness = THREE.MathUtils.lerp(0.54, 0.94, mud);
     }
     // Smooth the posture and expression signals independently of the walking gait.
-    const postureResponse = 1 - Math.exp(-dt * 6);
+    const postureResponse = 1 - Math.exp(-dt * (6/individuality));
+    restBlend+=((state==='rest'?1:0)-restBlend)*postureResponse;
     const channels=gestureChannels(pose.gesture),gestureResponse=1-Math.exp(-dt*18);
     wingStroke=pose.gesture?channels.stroke:wingStroke*(1-gestureResponse);
     tailWag+=(channels.tail-tailWag)*gestureResponse;
@@ -676,8 +682,16 @@ export function createDuck(kind: DuckKind): {
     sleepBlend += ((state==='sleep'?1:0)-sleepBlend)*postureResponse;
     const comfortBlend=Math.min(1,preenBlend+sleepBlend);
     const lookTarget=THREE.MathUtils.clamp(pose.look,-1.15,1.15)*(1-comfortBlend)*(1-chaseBlend);
-    headLook+=(lookTarget-headLook)*(1-Math.exp(-dt*13));
-    neckLook+=(lookTarget-neckLook)*(1-Math.exp(-dt*4));
+    // Keep gaze in world direction as the pelvis turns underneath it. Head
+    // responds first; the slower neck follows. Never filter wrapped Euler yaw.
+    const headingDelta=hasHeading?Math.atan2(Math.sin(group.rotation.y-previousHeading),Math.cos(group.rotation.y-previousHeading)):0;
+    previousHeading=group.rotation.y;hasHeading=true;
+    const gazeFreedom=(1-comfortBlend)*(1-feedingBlend)*(1-chaseBlend);
+    headGaze.value-=headingDelta*gazeFreedom/.96;
+    neckGaze.value-=headingDelta*gazeFreedom/.96;
+    headLook=THREE.MathUtils.clamp(headGaze.step(lookTarget,dt),-1.3,1.3);
+    neckLook=THREE.MathUtils.clamp(neckGaze.step(lookTarget,dt),-1.3,1.3);
+    headGaze.value=headLook;neckGaze.value=neckLook;
     uprightBlend += (THREE.MathUtils.clamp(pose.upright, 0, 1) -
       uprightBlend) * postureResponse;
     tiltBlend += (THREE.MathUtils.clamp(pose.headTilt, -.48, .48) -
@@ -685,21 +699,21 @@ export function createDuck(kind: DuckKind): {
     displayBlend += (THREE.MathUtils.clamp(pose.displayDip, 0, 1) -
       displayBlend) * postureResponse;
     const moving = !airborne&&crouch===0&&pose.speed > .005 && state!=='swim' && state!=='sleep' && state!=='preen';
+    moveBlend+=((moving?1:0)-moveBlend)*(1-Math.exp(-dt*10));
     const swim = state === 'swim';
     if(swim)paddlePhase+=dt*Math.PI*2*(.65+Math.min(.8,pose.speed)*1.5);
     // Foraging and interrupted feeding can change the intent in one frame.
     // Let the neck accelerate into/out of the dip instead of copying that jump.
     const peckAmount = THREE.MathUtils.clamp(headDip.step(THREE.MathUtils.clamp(pose.peck,0,1),dt),0,1);
-    const stride = moving ? Math.min(1, Math.max(.08, pose.speed * 2.5)) : 0;
     group.updateMatrixWorld(true);
     group.getWorldPosition(rootPosition);
-    const travel = hasRootPosition ? Math.min(.1, rootPosition.distanceTo(lastRootPosition)) : 0;
-    if (moving) gaitPhase += travel * 19;
-    lastRootPosition.copy(rootPosition); hasRootPosition = true;
-    const phase = gaitPhase;
     const floatTarget=swim?1:state==='enter'&&airborne?THREE.MathUtils.smoothstep(jump,.35,.9):state==='exit'?(airborne?1-THREE.MathUtils.smoothstep(jump,0,.55):1):0;
     swimBlend += (floatTarget - swimBlend) * (1 - Math.exp(-dt * 18));
     if (Math.abs(swimBlend - floatTarget) < .001) swimBlend = floatTarget;
+    gait.update(dt,rootPosition,group.rotation.y,!airborne && swimBlend<.1 && sleepBlend<.1 && crouch===0,pose.groundHeight);
+    const supportTarget=gait.feet.reduce((sum,foot)=>sum-foot.side*Math.sin(Math.PI*foot.progress),0);
+    const supportSway=weightShift.step(supportTarget*(1-swimBlend)*(1-sleepBlend)*(1-jumpBlend),dt);
+    const footLift=Math.max(...gait.feet.map(foot=>foot.lift));
     const low = (1 - uprightBlend) * (1 - swimBlend) * (1 - peckAmount);
     const display = displayBlend * (1 - swimBlend) * (1 - peckAmount);
     // Raised runner posture: narrow breast, tucked wings and a longer silhouette.
@@ -707,29 +721,30 @@ export function createDuck(kind: DuckKind): {
     const extension = THREE.MathUtils.clamp(bodyExtension.step(uprightBlend * (1 - swimBlend) * (1 - peckAmount * .6),dt),0,1);
     // The reference birds have a slender trunk beneath the folded plumage.
     // Fluff up in rest/sleep/preening, with soft living breathing.
-    const fluff = comfortBlend * 0.08 + (state === 'rest' ? 0.06 : 0);
-    const breathing = (state === 'sleep' || (state === 'rest' && pose.speed < 0.02) || (!moving && (state === 'guard' || state === 'wander') && pose.speed < 0.02)) ? Math.sin(time * 2.2 + BLINK_OFFSETS[kind]) * (state === 'sleep' || state === 'rest' ? 0.020 : 0.008) : 0;
+    const fluff = comfortBlend * 0.08 + restBlend * 0.06;
+    const quietTarget=pose.speed<.02?1:0;
+    breathBlend+=(quietTarget-breathBlend)*postureResponse;
+    const breathing=Math.sin(time*1.8/individuality+BLINK_OFFSETS[kind])*(.008+restBlend*.006)*(1-sleepBlend*.7)*breathBlend;
     const baseScaleY = .94 + extension * .19 + gestureStretch * .08;
     const baseScaleZ = .91 * (1.06 - extension * .26);
     bodyShape.scale.set(
       .88 * (1 - extension * .22) * DUCK_PROFILES[kind].bodyWidth * (1 + fluff + breathing),
-      baseScaleY * ((state === 'rest' || state === 'preen') ? (1 + fluff * 0.35 + breathing * 0.25) : 1),
+      baseScaleY * (1 + (fluff * .35 + breathing * .25)*Math.min(1,restBlend+preenBlend)),
       baseScaleZ * (1 + fluff * 0.65),
     );
     foldedWings.forEach(wing=>wing.rotation.x=-.12*extension);
     neckPivot.position.set(0, .302 * baseScaleY, .143 * baseScaleZ);
     const isTrotting = (pose.trot || (pose.speed > 0.95 && moving)) && !swim;
-    const trotHop = isTrotting ? Math.sin(phase * 2) * 0.005 : 0;
+    const trotHop = isTrotting ? footLift * .005 : 0;
     torso.position.y = .604 + gestureStretch*.018 - extension * .035 - swimBlend * .44 - peckAmount * .015 -
-      low * (.025+.115*sleepBlend) - display * .008 - sleepBlend*.18 -crouch*.075 -landing*.045 + trotHop -
-      Math.min(.016,pose.speed*.008)*(1-swimBlend)*(1-uprightBlend) + (moving || swim ? 0 : Math.sin(time * 1.6) * .004*(1-comfortBlend));
+      low * (.025+.115*sleepBlend) - display * .008 - sleepBlend*.18 -crouch*.075 -landing*.045 -
+      Math.min(.016,pose.speed*.008)*(1-swimBlend)*(1-uprightBlend);
     const standingLean=.12*extension*(1-comfortBlend)*(1-gestureStretch);
     torso.rotation.x = standingLean + low * .30 + display * .065 + gestureLean +
-      (moving ? -.025 :
-        -swimBlend * .035 + restLean);
-    const standShift = (!moving && !swim && state !== 'sleep' && !pose.recordedBody) ? Math.sin(time * 0.8 + BLINK_OFFSETS[kind] * 3) * 0.003 : 0;
-    torso.position.x = gestureBalance * .3 + standShift;
-    torso.rotation.z = gestureBalance;
+      (-.025*moveBlend + (1-moveBlend)*(-swimBlend * .035 + restLean));
+    const standShift = (!pose.recordedBody) ? Math.sin(time * 0.8 + BLINK_OFFSETS[kind] * 3) * .003*(1-moveBlend)*(1-swimBlend)*(1-comfortBlend) : 0;
+    torso.position.x = 0;
+    torso.rotation.z = 0;
     torso.rotation.y = rumpTurn;
     neckPivot.scale.setScalar(1);
     head.scale.setScalar(1);
@@ -809,29 +824,33 @@ export function createDuck(kind: DuckKind): {
       awakeHeadRotation.copy(parentRotation).multiply(head.quaternion).slerp(comfortHeadRotation,chestPreen);
       head.quaternion.copy(parentRotation.invert()).multiply(awakeHeadRotation);
     }
-    const blinkOffset = BLINK_OFFSETS[kind];
-    const blinkCycle = (((time + blinkOffset) % 4.4) + 4.4) % 4.4;
-    const blink = blinkCycle < 0.14 ? Math.sin((blinkCycle / 0.14) * Math.PI) : 0;
+    if(time>=nextBlink){
+      blinkStarted=time;blinkCount++;
+      const jitter=Math.sin(blinkCount*12.9898+BLINK_OFFSETS[kind]*78.233)*43758.5453;
+      nextBlink=time+2.4+(jitter-Math.floor(jitter))*4.2;
+    }
+    const blinkAge=time-blinkStarted;
+    const blink=blinkAge>=0&&blinkAge<.15?Math.sin(blinkAge/.15*Math.PI):0;
     const eyeClose = Math.max(sleepBlend, blink * (1 - sleepBlend));
     eyes.forEach(eye => eye.scale.y = 1 - eyeClose * .94);
     eyeGlints.forEach(glint => glint.visible = eyeClose < .5);
     // Water displacement belongs to the root, outside the torso animation.
     // Convert it back to model units so the neck absorbs it without moving the body.
     const waterCompensation = swim ? THREE.MathUtils.clamp(pose.waterBob??0,-.08,.08)*.94*swimBlend/group.scale.y : 0;
-    if (moving || swim || Math.abs(pitch)+Math.abs(roll)+Math.abs(headLag)+Math.abs(headSide)>.00001) {
+    if (sleepBlend<.999 && !pose.recordedBody) {
       // Capture the intentional posture/look/tilt before adding the footfall sway.
       torso.updateMatrix();
       neckPivot.updateMatrix();
       steadyHead.copy(head.position).applyMatrix4(neckPivot.matrix).applyMatrix4(torso.matrix);
-      steadyHead.x+=headSide;steadyHead.z+=headLag;
+      steadyHead.x+=headSide*(1-comfortBlend);steadyHead.z+=headLag*(1-comfortBlend);
       steadyHead.y-=waterCompensation;
       steadyHeadRotation.copy(torso.quaternion).multiply(neckPivot.quaternion).multiply(head.quaternion);
 
-      torso.position.y += Math.sin(phase * 2) * .017 * stride;
-      torso.position.x += Math.sin(phase) * .013 * stride;
-      torso.rotation.x += Math.sin(phase) * .028 * stride + pitch;
-      torso.rotation.y += Math.cos(phase) * .032 * stride;
-      torso.rotation.z += Math.sin(phase) * .036 * stride + roll;
+      const awake=1-sleepBlend;
+      torso.position.y += (footLift*.006+trotHop)*awake;
+      torso.position.x += (supportSway*.012+standShift+gestureBalance*.3)*awake;
+      torso.rotation.x += (supportSway*.012+pitch)*awake;
+      torso.rotation.z += (supportSway*.024+roll+gestureBalance)*awake;
       if(swim){
         // Buoyant body rocks independently; the neck solves back to the steady
         // head captured above instead of carrying the skull along like a toy.
@@ -841,14 +860,14 @@ export function createDuck(kind: DuckKind): {
       torso.updateMatrix();
       inverseTorso.copy(torso.matrix).invert();
       desiredNeck.copy(steadyHead).applyMatrix4(inverseTorso).sub(neckPivot.position);
-      const neckLength = desiredNeck.length();
       currentNeck.copy(head.position).applyQuaternion(neckPivot.quaternion).normalize();
       neckCorrection.setFromUnitVectors(currentNeck, desiredNeck.normalize());
       neckPivot.quaternion.premultiply(neckCorrection);
-      const spring = neckLength / head.position.length();
-      neckPivot.scale.setScalar(spring);
-      // The neck flexes; the head keeps its size and intended orientation.
-      head.scale.setScalar(1 / spring);
+      // Keep the skull and neck rig at unit scale. Move the endpoint and let
+      // the curved skin absorb the offset, rather than stretching a tube.
+      neckPivot.scale.setScalar(1);head.scale.setScalar(1);
+      neckPivot.updateMatrix();
+      head.position.copy(steadyHead).applyMatrix4(inverseTorso).applyMatrix4(feedingParent.copy(neckPivot.matrix).invert());
       parentRotation.copy(torso.quaternion).multiply(neckPivot.quaternion).invert();
       head.quaternion.copy(parentRotation).multiply(steadyHeadRotation);
     }
@@ -915,12 +934,13 @@ export function createDuck(kind: DuckKind): {
       skinCollar.copy(neckPivot.position).lerp(desiredNeck.set(0,.18,.16),fold);
       recordedMiddle.copy(skinCollar).lerp(recordedEnd,.58);
       const reach=skinCollar.distanceTo(recordedEnd);
-      recordedMiddle.z+=.025+Math.sqrt(Math.max(0,.5*.5-reach*reach))*.15*(1-comfortBlend);
+      recordedMiddle.x-=headSide*.5*(1-comfortBlend);
+      recordedMiddle.z+=.025-headLag*.5*(1-comfortBlend)+Math.sqrt(Math.max(0,.5*.5-reach*reach))*.15*(1-comfortBlend);
       recordedRoot.set(0,.08,.065);
       recordedNeck.update(recordedRoot,skinCollar,recordedMiddle,recordedEnd);
     }
     torso.updateMatrix();
-    gait.update(dt,rootPosition,group.rotation.y,!airborne && swimBlend<.1 && sleepBlend<.1 && crouch===0,pose.groundHeight);
+
     const isRestingStand = !!pose.oneLeg && state === 'rest' && (pose.speed ?? 0) < 0.03 && sleepBlend < 0.1 && !pose.gesture;
     const restSide = kind === 'brown' || kind === 'drake' ? 0 : 1;
     oneLegBlend += ((isRestingStand ? 1 : 0) - oneLegBlend) * Math.min(1, dt * 2.2);

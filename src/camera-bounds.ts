@@ -7,6 +7,18 @@ export const CAMERA_HEIGHT = { min: .65, max: 1.65 };
 export const CAMERA_SHELTER={minX:SHELTER.minX-.30,maxX:SHELTER.maxX+.30,minZ:SHELTER.back-.30,maxZ:SHELTER.front+.30};
 const inside=(p:{x:number;z:number})=>p.x>CAMERA_SHELTER.minX&&p.x<CAMERA_SHELTER.maxX&&p.z>CAMERA_SHELTER.minZ&&p.z<CAMERA_SHELTER.maxZ;
 
+/** Used by automatic steering before choosing a direction, not only afterwards. */
+export function cameraSegmentClear(start:{x:number;z:number},end:{x:number;z:number}){
+ let enter=0,leave=1;
+ for(const [key,min,max] of [['x',CAMERA_SHELTER.minX,CAMERA_SHELTER.maxX],['z',CAMERA_SHELTER.minZ,CAMERA_SHELTER.maxZ]] as const){
+  const delta=end[key]-start[key];
+  if(Math.abs(delta)<1e-10){if(start[key]<=min||start[key]>=max)return true;continue;}
+  const a=(min-start[key])/delta,b=(max-start[key])/delta;
+  enter=Math.max(enter,Math.min(a,b));leave=Math.min(leave,Math.max(a,b));
+ }
+ return enter>=leave;
+}
+
 function avoidShelter(position:Vector3,previous?:Vector3){
  const b=CAMERA_SHELTER;
  if(previous&&!inside(previous)){

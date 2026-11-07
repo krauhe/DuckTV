@@ -1,3 +1,4 @@
+import {DuckAlert} from './duck-alert';
 import './style.css';
 import {startAnalytics} from './analytics';
 import {gardenGroundHeight} from './shelter';
@@ -13,9 +14,10 @@ import { getGistrupWeather } from './weather';
 import { GARDEN, POND } from './types';
 import { FeedGesture } from './pointer-gesture';
 import { constrainGardenCamera } from './camera-bounds';
-import { CameraFollow } from './camera-follow';
+import { CameraFollow, CAMERA_TOUR } from './camera-follow';
 import { getDaylight, getSceneDate, formatTime } from './daylight';
 import {initialPreferences,writePreferences,type Preferences} from './preferences';
+import {ActivityAudio} from './activity-audio';
 import {BackgroundMusic} from './background-music';
 import {BehaviorNotices, DUCK_NAMES, DUCK_ACTIONS} from './behavior-notices';
 import {DUCK_PROFILES} from './duck-profiles';
@@ -26,6 +28,15 @@ let preferenceStorage:Storage|undefined;
 try{preferenceStorage=localStorage;}catch{/* Storage may be disabled. */}
 const preferences=initialPreferences(preferenceStorage,new Date());
 const savePreferences=()=>{if(preferenceStorage)writePreferences(preferenceStorage,preferences);};
+const effects=new ActivityAudio(preferences.sound,preferences.soundVolume??0,message=>{$('effects-note').textContent=message;$('effects-note').hidden=!message;});
+const effectsVolume=$<HTMLInputElement>('effects-volume');
+effectsVolume.value=String(Math.round((preferences.soundVolume??0)*100));
+const syncEffectsVolume=()=>{const off=Number(effectsVolume.value)===0;$('effects-volume-label').textContent=off?'Fra':effectsVolume.value+' %';effectsVolume.setAttribute('aria-valuetext',off?'Fra':effectsVolume.value+' procent');};syncEffectsVolume();
+effectsVolume.addEventListener('input',()=>{preferences.soundVolume=Number(effectsVolume.value)/100;preferences.sound=preferences.soundVolume>0;effects.setVolume(preferences.soundVolume);effects.setEnabled(preferences.sound);syncEffectsVolume();savePreferences();});
+document.addEventListener('pointerup',()=>{void effects.start();});
+document.addEventListener('keydown',e=>{if(!e.repeat)void effects.start();});
+document.addEventListener('visibilitychange',()=>effects.setVisible(!document.hidden));
+addEventListener('pagehide',()=>effects.setVisible(false));addEventListener('pageshow',()=>effects.setVisible(!document.hidden));
 const behaviorNotices=new BehaviorNotices($('behavior-notices'));
 const behaviorSwitch=$<HTMLInputElement>('behavior-toggle');
 behaviorSwitch.checked=preferences.showBehavior;
@@ -252,7 +263,9 @@ function resetView() {
     x: sim.ducks.reduce((s, d) => s + d.x, 0) / sim.ducks.length,
     z: sim.ducks.reduce((s, d) => s + d.z, 0) / sim.ducks.length,
   };
-  camera.position.set(THREE.MathUtils.clamp(fc.x + .15, -3.2, 3.2), 1.65, THREE.MathUtils.clamp(fc.z + 3.8, 1.2, 4.1));
+  const viewpoints=CAMERA_TOUR.filter(p=>sim.ducks.every(d=>Math.hypot(d.x-p.x,d.z-p.z)>2.3));
+  const view=viewpoints[Math.floor(Math.random()*viewpoints.length)]??CAMERA_TOUR[2];
+  camera.position.set(view.x+(Math.random()-.5)*.15,1.65,view.z+(Math.random()-.5)*.15);
   cameraTarget.set(fc.x, .65, fc.z);
   syncAnglesFromTarget();
   constrainGardenCamera(camera, cameraTarget);
@@ -574,18 +587,18 @@ let weatherGeneration=0;
 async function weatherChanged(){
  const generation=++weatherGeneration;
  const mode=$<HTMLSelectElement>('weather').value;
- const preset=mode==='rain'?{cloud:95,wind:3,rain:1.5,frost:0,snow:0,isDay:true}:mode==='cloud'?{cloud:85,wind:2,rain:0,frost:0,snow:0,isDay:true}:mode==='frost'?{cloud:18,wind:1.2,rain:0,frost:1,snow:0,isDay:true}:mode==='snow'?{cloud:88,wind:2.2,rain:0,frost:0.5,snow:1,isDay:true}:{cloud:22,wind:1.5,rain:0,frost:0,snow:0,isDay:true};
+ const preset=mode==='wind'?{cloud:65,wind:9,rain:0,frost:0,snow:0,isDay:true}:mode==='rain'?{cloud:95,wind:3,rain:1.5,frost:0,snow:0,isDay:true}:mode==='cloud'?{cloud:85,wind:2,rain:0,frost:0,snow:0,isDay:true}:mode==='frost'?{cloud:18,wind:1.2,rain:0,frost:1,snow:0,isDay:true}:mode==='snow'?{cloud:88,wind:2.2,rain:0,frost:0.5,snow:1,isDay:true}:{cloud:22,wind:1.5,rain:0,frost:0,snow:0,isDay:true};
  if(mode!=='live'){
-  environment.setWeather(preset);
+  environment.setWeather(preset);effects.setWeather(preset);
   sim.setWeather(preset);
-  $('weather-label').textContent=mode==='rain'?'En stille regnbyge':mode==='cloud'?'Under skyerne':mode==='frost'?'Klar vinterdag med rimfrost':mode==='snow'?'Stille snefald over haven':'En rolig dag';
+  $('weather-label').textContent=mode==='wind'?'Blæsevejr · frisk vind':mode==='rain'?'En stille regnbyge':mode==='cloud'?'Under skyerne':mode==='frost'?'Klar vinterdag med rimfrost':mode==='snow'?'Stille snefald over haven':'En rolig dag';
   return;
  }
  $('weather-label').textContent='Henter Gistrup-vejr …';
  try{
   const result=await getGistrupWeather();
   if(generation!==weatherGeneration)return;
-  environment.setWeather(result.weather);
+  environment.setWeather(result.weather);effects.setWeather(result.weather);
   sim.setWeather(result.weather);
   $('weather-label').textContent=result.label;
  }
@@ -604,6 +617,7 @@ let lastRenderTime=performance.now();
 let frameCount=0;
 let lastFpsTime=performance.now();
 const previousCameraPosition=new THREE.Vector3();
+const duckAlerts=sim.ducks.map(()=>new DuckAlert());
 function frame(now:number){
  const targetFps = 30;
  const minInterval = (1000 / targetFps) - 2.5;
@@ -631,7 +645,8 @@ function frame(now:number){
  }
  constrainGardenCamera(camera,cameraTarget,previousCameraPosition);
  sim.setViewer(camera.position.x,camera.position.z);
- updateDaylight(dt);sim.update(dt);environment.update(sim.time,dt);environment.setShelterDoor(sim.shelterDoor.closed);
+ effects.setHelicopter(camera.position.distanceTo(environment.helicopter.position),environment.helicopter.rotorActivity);
+ updateDaylight(dt);sim.update(dt);effects.update(sim.ducks,camera.position,sim.night,sim.bathDuet,sim.time);environment.update(sim.time,dt);environment.setShelterDoor(sim.shelterDoor.closed);
  behaviorNotices.update(sim.ducks,now,preferences.showBehavior&&!$('app').classList.contains('crt-boot'));
  eggs.update(sim.time,dt,sim.ducks,camera);forageHoles.update(sim.time);
  for(let i=0;i<sim.ducks.length;i++){
@@ -642,8 +657,10 @@ function frame(now:number){
    fly.group.rotation.y=Math.sin(sim.time*.7+i)*.6;
    fly.wings.forEach((wing,index)=>wing.rotation.z=(index?1:-1)*Math.sin(sim.time*67)*.7);
   }
-   const heliAlert = environment.helicopter.isAudibleOrVisibleNear && d.state !== 'sleep';
-  m.animate({preenTarget:d.preenTarget,gesture:d.gesture,mouthOpen:d.mouthOpen,groundHeight:gardenGroundHeight,waterBob:d.state==='swim'?d.y-POND.waterY:0,speed:d.speed,time:sim.time+i*1.71,state:d.state,look:heliAlert?0.82:d.look,peck:d.peck,upright:heliAlert?Math.max(d.upright,0.65):d.upright,headTilt:d.headTilt,displayDip:d.displayDip,accelerationForward:d.ax*Math.sin(d.heading)+d.az*Math.cos(d.heading),accelerationSide:d.ax*Math.cos(d.heading)-d.az*Math.sin(d.heading),jumpProgress:d.jumpProgress,crouch:d.crouch,landing:d.landing,wetness:d.state==='swim'?1:Math.max(0,1-(sim.time-(d.lastSwimAt??-100))/22),mud:d.mud,oneLeg:d.state==='rest'&&d.speed<0.03&&!d.gesture,trot:d.trot||d.speed>0.95,snail:d.snail});
+   const heliAlert=duckAlerts[i].update(environment.helicopter.isAudibleOrVisibleNear && !['sleep','preen','eat','drink'].includes(d.state),sim.time,dt,i);
+   const heliAngle=Math.atan2(environment.helicopter.position.x-d.x,environment.helicopter.position.z-d.z)-d.heading;
+   const heliLook=THREE.MathUtils.clamp(Math.atan2(Math.sin(heliAngle),Math.cos(heliAngle)),-1.1,1.1);
+  m.animate({preenTarget:d.preenTarget,gesture:d.gesture,mouthOpen:Math.max(d.mouthOpen,effects.mouthOpen(d.id)),groundHeight:gardenGroundHeight,waterBob:d.state==='swim'?d.y-POND.waterY:0,speed:d.speed,time:sim.time+i*1.71,state:d.state,look:THREE.MathUtils.lerp(d.look,heliLook,heliAlert),peck:d.peck,upright:THREE.MathUtils.lerp(d.upright,Math.max(d.upright,.65),heliAlert),headTilt:d.headTilt,displayDip:d.displayDip,accelerationForward:d.ax*Math.sin(d.heading)+d.az*Math.cos(d.heading),accelerationSide:d.ax*Math.cos(d.heading)-d.az*Math.sin(d.heading),jumpProgress:d.jumpProgress,crouch:d.crouch,landing:d.landing,wetness:d.state==='swim'?1:Math.max(0,1-(sim.time-(d.lastSwimAt??-100))/22),mud:d.mud,oneLeg:d.state==='rest'&&d.speed<0.03&&!d.gesture,trot:d.trot||d.speed>0.95,snail:d.snail});
 
   m.group.updateMatrixWorld(true);
   m.group.getObjectByName('duck-head')!.localToWorld(forageTip.set(0,.036,.30));

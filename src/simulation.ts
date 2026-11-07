@@ -6,6 +6,7 @@ import { DUCK_PROFILES } from './duck-profiles';
 import { GESTURE_SECONDS, type GesturePose, type DuckGesture } from './duck-gestures';
 import { SHELTER, shelterBeds, gardenGroundHeight, ShelterDoor } from './shelter';
 import { resolveDuckContacts } from './duck-collisions';
+import { BATH_DUET_SECONDS, bathDuetSteering, type BathDuet } from './bath-duet';
 
 /** Tunable scene timings and distances, in seconds and world units. */
 export const BEHAVIOR = {
@@ -199,6 +200,7 @@ interface Intent {
   pauseUntil: number;
   pondVisitAt: number;
   swimUntil: number;
+  swimCalmUntil?: number;
   phase: 'shore' | 'cross';
   queueAt: number;
   crossTime: number;
@@ -321,6 +323,9 @@ export class Simulation {
   foods: Food[] = [];
   time = 0;
   courtship: Courtship | null = null;
+  bathDuet: BathDuet | null = null;
+  private nextBathDuetAt = 12;
+  private bathDuetId = 0;
   night = false;
   readonly shelterDoor=new ShelterDoor();
 
@@ -340,6 +345,8 @@ export class Simulation {
     this.shelterDoor.reset();
     this.time = 0;
     this.courtship = null;
+    this.bathDuet = null;
+    this.nextBathDuetAt = 12;
     this.foods = [];
     this.nextFoodId = 0;
     this.lastCast = -Infinity;
@@ -374,12 +381,18 @@ export class Simulation {
       this.spawnZone = START_ZONES[0];
       starts = START_ZONES[0].starts.map(s => ({ ...s }));
     }
+    const variedStart=!Array.isArray(options)&&!options?.starts&&options?.spawnZone===undefined&&(this.random===Math.random||options?.randomStarts===true);
+    if(variedStart){
+      // Shuffle identities between safe slots; each bird also chooses its own gaze.
+      for(let i=starts.length-1;i>0;i--){const j=Math.floor(this.random()*(i+1));[starts[i],starts[j]]=[starts[j],starts[i]];}
+      starts=starts.map(s=>({...s,heading:s.heading+this.range(-1.0,1.0)}));
+    }
     this.ducks = kinds.map((kind, index) => {
       const start = starts[index];
       const activities:DuckState[]=kind==='drake'?['guard','guard','forage','preen']:['wander','rest','forage','preen'];
       const initialState=activities[Math.min(activities.length-1,Math.floor(this.random()*activities.length))];
       const duck: Duck = {
-        needs: { bath: .1+index*.06, rest: .12+index*.035, sociability: [ .85,.7,.9,1 ][index] },
+        needs: { bath: variedStart?this.range(.05,.55):.1+index*.06, rest: variedStart?this.range(.06,.4):.12+index*.035, sociability: [ .85,.7,.9,1 ][index] },
         mass:[2,1.7,1.85,1.8][index],inertia:[2,1.7,1.85,1.8][index]*.12,vx:0,vz:0,ax:0,az:0,angularVelocity:0,
         jumpProgress:-1,crouch:0,landing:0,waterEntries:0,lastSwimAt:-Infinity,mouthOpen:0,insectsCaught:0,mud:0,
         id: kind, kind, x: start.x, z: start.z, y: 0, wary: false,
@@ -538,6 +551,7 @@ export class Simulation {
       }
     }
     this.updateDisplay();
+    this.updateBathDuet();
 
     for (const duck of this.ducks) {
       const intent = this.intents.get(duck.id)!;
@@ -972,7 +986,7 @@ export class Simulation {
       const travelLook = (duck.speed > 0.04 || Math.abs(duck.angularVelocity) > 0.08)
         ? clamp(turnDelta * 0.55, -0.75, 0.75)
         : Math.sin(this.time * 0.9 + index * 2.1) * 0.10;
-      duck.look=interest?clamp(Math.atan2(Math.sin(Math.atan2(interest.x-duck.x,interest.z-duck.z)-duck.heading),
+      duck.look=Math.abs(turnDelta)>.35&&duck.speed>.04?clamp(turnDelta*.85,-1.05,1.05):interest?clamp(Math.atan2(Math.sin(Math.atan2(interest.x-duck.x,interest.z-duck.z)-duck.heading),
         Math.cos(Math.atan2(interest.x-duck.x,interest.z-duck.z)-duck.heading)),-1.15,1.15):travelLook;
     }
     duck.displayDip = 0;
@@ -1253,8 +1267,17 @@ export class Simulation {
     duck.y = POND.waterY + BEHAVIOR.swimBobHeight * Math.sin(afloat * BEHAVIOR.swimBobRate)*(1-Math.exp(-afloat*3))
       -.035*Math.sin(afloat*18)*Math.exp(-afloat*8);
     duck.look = BEHAVIOR.swimLookRange * Math.sin(this.time * BEHAVIOR.swimLookRate);
-    const wantsExit=this.time>=intent.swimUntil || (duck.needs.bath<.15 && this.time-intent.landedAt>3);
-    const nextToExit=this.ducks.find(other=>other.state==='swim'&&(this.time>=this.intents.get(other.id)!.swimUntil || (other.needs.bath<.15 && this.time-this.intents.get(other.id)!.landedAt>3)));
+    if(this.inBathDuet(duck)){
+      const duet=this.bathDuet!;
+      const leader=this.ducks.find(d=>d.id===duet.leaderId)!;
+      const follower=this.ducks.find(d=>d.id===duet.followerId)!;
+      const steering=bathDuetSteering(duet,duck,leader,follower,duck===leader,this.time);
+      intent.target=steering.target;
+      this.move(duck,intent.target,steering.speed,dt);
+      return;
+    }
+    const wantsExit=this.wantsBathExit(duck);
+    const nextToExit=this.ducks.find(other=>other.state==='swim'&&this.wantsBathExit(other));
     const gateTurn=wantsExit&&nextToExit?.id===duck.id&&!this.ducks.some(other=>other.state==='exit');
     if(wantsExit){
       const index=this.ducks.indexOf(duck);
@@ -1270,6 +1293,47 @@ export class Simulation {
         }
       } else intent.target = this.swimTarget();
     } else this.move(duck, intent.target, BEHAVIOR.swimSpeed, dt);
+  }
+
+  private inBathDuet(duck: Duck): boolean {
+    return !!this.bathDuet && (duck.id===this.bathDuet.leaderId || duck.id===this.bathDuet.followerId);
+  }
+
+  private wantsBathExit(duck: Duck): boolean {
+    if(this.inBathDuet(duck))return false;
+    const intent=this.intents.get(duck.id)!;
+    if(this.time<(intent.swimCalmUntil??0))return false;
+    return this.time>=intent.swimUntil || (duck.needs.bath<.15 && this.time-intent.landedAt>3);
+  }
+
+  private updateBathDuet(): void {
+    const quiet=!this.night && !this.courtship && !this.foods.some(f=>!f.eaten);
+    const comfortable=(d:Duck)=>d.state==='swim' && !this.intents.get(d.id)!.retreating &&
+      distance(d,this.viewer)>BEHAVIOR.viewerDistance[d.kind]+.3;
+    if(this.bathDuet){
+      const pair=this.ducks.filter(d=>this.inBathDuet(d));
+      if(quiet && pair.length===2 && pair.every(comfortable) && this.time-this.bathDuet.startedAt<this.bathDuet.duration)return;
+      // A little ordinary swimming after the conversation; no simultaneous exit.
+      for(const d of pair){
+        const intent=this.intents.get(d.id)!;
+        intent.swimCalmUntil=this.time+this.range(1.5,3.5);
+        intent.swimUntil=intent.swimCalmUntil;
+      }
+      this.bathDuet=null;
+      this.nextBathDuetAt=this.time+this.range(55,95);
+      return;
+    }
+    if(!quiet || this.time<this.nextBathDuetAt)return;
+    const candidates=this.ducks.filter(d=>comfortable(d) && this.time-this.intents.get(d.id)!.landedAt>1 && !this.wantsBathExit(d));
+    if(candidates.length<2)return;
+    this.nextBathDuetAt=this.time+this.range(1.5,3);
+    if(this.random()>.7)return;
+    const leader=candidates[Math.min(candidates.length-1,Math.floor(this.random()*candidates.length))];
+    const follower=candidates.filter(d=>d!==leader).sort((a,b)=>distance(a,leader)-distance(b,leader))[0];
+    const delta=Math.atan2(leader.z-POND.z,leader.x-POND.x)-Math.atan2(follower.z-POND.z,follower.x-POND.x);
+    const direction=Math.atan2(Math.sin(delta),Math.cos(delta))>=0?1:-1;
+    this.bathDuet={id:++this.bathDuetId,leaderId:leader.id,followerId:follower.id,startedAt:this.time,duration:BATH_DUET_SECONDS,direction};
+    for(const d of [leader,follower])this.intents.get(d.id)!.swimUntil=this.time+BATH_DUET_SECONDS;
   }
 
   private exitPond(duck: Duck, intent: Intent, dt: number): void {

@@ -5,6 +5,7 @@ export interface Helicopter {
   group: THREE.Group;
   readonly position: THREE.Vector3;
   readonly isAudibleOrVisibleNear: boolean;
+  readonly rotorActivity: number;
   update(dt: number): void;
   setDaylight(solarAltitude: number): void;
   trigger(): void;
@@ -421,6 +422,9 @@ export function createHelicopter(helipadTarget: THREE.Vector3): Helicopter {
 
     get isAudibleOrVisibleNear(): boolean {
       return isAudibleOrVisibleNear;
+    },
+    get rotorActivity(): number {
+      return group.visible ? THREE.MathUtils.clamp(rotorSpeed / 28, 0, 1) : 0;
     },
 
     trigger(): void {

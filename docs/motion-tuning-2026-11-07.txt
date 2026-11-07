@@ -1,0 +1,25 @@
+Movement tuning — 2026-11-07
+
+Reference checked in the browser: https://www.youtube.com/watch?v=1IbxRBVFPuQ (Lyngby Havecenter, Indiske løbeænder elsker dræbersnegle).
+Sampled frames around 00:10 (feeding), 00:15 (upright movement) and 00:45 (bill in water). This is qualitative visual reference, not a biomechanical measurement or full motion capture. Keep the user's observations primary: tall narrow runner posture, mostly straight support legs, quick recovery steps, independently orienting/stabilized head, quiet supported sleeping head.
+
+Implementation:
+- Feet retain planted world positions; earlier, brief lift and smaller turning threshold.
+- Body weight shift follows the actual supporting/swinging foot, including turns on the spot. Removed the independent pelvis-yaw oscillator and reduced vertical bob.
+- Head and neck use separate damped gaze responses. Root yaw changes are compensated before the gaze catches up; wrap at +/-pi is safe. Moving ducks look into a significant upcoming turn.
+- Rest shape, lean and breathing ease between activities. Sleeping head stays supported and calm.
+- Head endpoint compensation bends existing curved neck skin with unit rig scale; no telescopic neck scaling for balance. Recorded training poses remain separate and training remains paused.
+- Individual helicopter reaction delays and irregularly scheduled blinks.
+- Wide flock camera follows an inward garden circuit, with a detour around shelter and clearance from ducks. Single-duck focus keeps its existing follow behavior. User input still takes control immediately.
+- Camera start is randomly selected from safe viewpoints. Browser starts vary duck slots, headings and bath/rest needs, in addition to the existing random activities. Explicit/test spawn overrides stay deterministic.
+
+Validation: gait support/clearance, head stability and orientation, sleep posture, curved skin attachment, safe camera circuit across all quadrants, bounded camera velocity and manual takeover. Old test expectations for telescoping neck and perpetual pelvic yaw were updated to the new behavior. The foraging interruption test now permits a bathing drake to remain in water rather than requiring a land guard pose immediately.
+
+Argon recommendations reviewed in .local/argon-motion-review/verified-summary.txt. Not adopted blindly: no overlapping support steps, no oscillating blink modulo period, and no claim that these artist-tuned values are measured duck anatomy.
+
+Owner-requested paired bath activity:
+- Two already settled swimmers can choose to follow one another around the bath. Individual force-based steering and normal collision handling remain active; no timeline-driven root placement. The follower regulates its pace from the leader's actual position.
+- One bout lasts 540019 / 22050 = 24.490657596371882 seconds, matching the selected playback copy of "1 water ducks chatting". Pace eases in and out; departures remain staggered. Food, darkness, fear or losing a swimming partner cancels the bout.
+- The full water/chat clip is reserved for this activity, fades in/out once, and seeks to the current activity time after late loading, mute or a clock drift. It no longer runs as a general swimming loop or supplies short splash snippets. Behavior works with audio off.
+- Sound effects use only a remembered volume slider: zero means off. The test-quack button and separate effects switch are removed. Old muted preferences migrate to zero; music retains its own control.
+- User requested commit/push after these changes. Only the selected generated playback WAVs are included; original sound files, reference inputs and private review material stay ignored.

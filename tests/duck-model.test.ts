@@ -184,10 +184,11 @@ test('walking keeps the head steady while the body sways and the attached neck f
         assert.ok(rotation.angleTo(firstRotation) < 0.00001, `${kind}: head rotates with footfalls`);
         assert.ok(Math.abs(scale.x - .8) < 0.00001, 'neck spring must not resize the head');
         bodyMin = Math.min(bodyMin, body.position.y); bodyMax = Math.max(bodyMax, body.position.y);
-        neckMin = Math.min(neckMin, neck.scale.y); neckMax = Math.max(neckMax, neck.scale.y);
+        neckMin = Math.min(neckMin, neck.rotation.x); neckMax = Math.max(neckMax, neck.rotation.x);
+        assert.equal(neck.scale.y,1,'stabilization bends the neck without telescoping');
       }
-      assert.ok(bodyMax - bodyMin > .025, 'body still moves with the feet');
-      assert.ok(neckMax - neckMin > .02, 'neck absorbs the body movement');
+      assert.ok(bodyMax - bodyMin > .004, 'body still moves with the feet');
+      assert.ok(neckMax - neckMin > .002, 'neck absorbs the body movement');
       model.animate({ ...pose, time: pose.time + .016, speed: 0, state: 'rest' });
       assert.equal(neck.scale.y, 1, 'stopping clears the walking compensation');
       assert.equal(head.scale.y, 1);
@@ -319,7 +320,7 @@ test('drake head and speculum materials feature iridescent sheen', () => {
   assert.ok((mat.iridescence ?? 0) > 0.4, 'drake head has noticeable iridescence');
 });
 
-test('awake ducks blink periodically with open eyes outside blink window and closed eyes during sleep', () => {
+test('awake ducks blink at irregular intervals with open eyes outside blink window and closed eyes during sleep', () => {
   const drake = createDuck('drake');
   const head = drake.group.getObjectByName('duck-head')!;
   const leftEye = head.getObjectByName('duck-left-eye')!;
@@ -327,11 +328,16 @@ test('awake ducks blink periodically with open eyes outside blink window and clo
   drake.animate({ state: 'guard', speed: 0, time: 1.0, upright: 1, look: 0, peck: 0, headTilt: 0, displayDip: 0 });
   assert.ok(leftEye.scale.y > 0.95, 'awake eye is open outside blink window');
 
-  drake.animate({ state: 'guard', speed: 0, time: 0.07, upright: 1, look: 0, peck: 0, headTilt: 0, displayDip: 0 });
-  assert.ok(leftEye.scale.y < 0.15, 'awake eye closes during blink pulse');
-
-  for (let i = 0; i < 60; i++) {
-    drake.animate({ state: 'sleep', speed: 0, time: 1.0 + i / 60, upright: 0, look: 0, peck: 0, headTilt: 0, displayDip: 0 });
+  const blinks:number[]=[];let closed=false,openFrames=0;
+  for(let i=61;i<1200;i++){
+    drake.animate({state:'guard',speed:0,time:i/60,upright:1,look:0,peck:0,headTilt:0,displayDip:0});
+    const nowClosed=leftEye.scale.y<.15;
+    if(nowClosed&&!closed)blinks.push(i/60);
+    if(leftEye.scale.y>.95)openFrames++;
+    closed=nowClosed;
   }
+  assert.ok(blinks.length>=3&&openFrames>1000);
+  assert.ok(Math.abs((blinks[1]-blinks[0])-(blinks[2]-blinks[1]))>.1,'blink gaps are not a fixed repeating clock');
+  for(let i=0;i<120;i++)drake.animate({state:'sleep',speed:0,time:20+i/60,upright:0,look:0,peck:0,headTilt:0,displayDip:0});
   assert.ok(leftEye.scale.y < 0.12, 'sleeping eye remains closed');
 });

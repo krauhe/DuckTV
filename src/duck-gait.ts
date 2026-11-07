@@ -49,9 +49,9 @@ export class DuckGait {
     for (const foot of this.feet) {
       if (foot.progress >= 1) continue;
       foot.progress = Math.min(1, foot.progress + dt/foot.duration);
-      const u = smooth(foot.progress);
+      const u = smooth(Math.max(0,(foot.progress-.06)/.94));
       foot.position.lerpVectors(foot.from, foot.target, u);
-      foot.lift = Math.sin(Math.PI*foot.progress)**4;
+      foot.lift = Math.sin(Math.PI*Math.pow(Math.min(1,foot.progress/.9),.65))**4;
       foot.position.y += foot.lift*foot.height;
       foot.yaw = foot.fromYaw + turn(foot.targetYaw-foot.fromYaw)*u;
       swinging ||= foot.progress < 1;
@@ -61,7 +61,7 @@ export class DuckGait {
       for (const index of [this.next, 1-this.next]) {
         const foot = this.feet[index];
         const offset = foot.position.distanceTo(neutralFor(foot.side));
-        if (offset < .045 + speed*.02 && Math.abs(turn(heading-foot.yaw)) < .3) continue;
+        if (offset < .045 + speed*.02 && Math.abs(turn(heading-foot.yaw)) < .18) continue;
         foot.from.copy(foot.position); foot.fromYaw = foot.yaw;
         // Brief, quick recovery; most of each foot's cycle is planted stance.
         foot.duration = Math.max(.065, .105-speed*.025);

@@ -1,5 +1,10 @@
 import { MathUtils, Vector3, type PerspectiveCamera } from 'three';
 import { GARDEN, type Vec2 } from './types';
+import {cameraSegmentClear} from './camera-bounds';
+
+// A garden circuit with an inward detour around the shelter's roof overhang.
+export const CAMERA_TOUR=[{x:-1.85,z:-3.35},{x:4.55,z:-3.35},{x:4.55,z:3.35},
+ {x:-4.55,z:3.35},{x:-4.55,z:-1.3},{x:-1.85,z:-1.3}];
 
 export const FOLLOW_CAMERA = {
   idleSeconds:5, clearance:1.9, speed:.24, lookSpeed:.32,
@@ -26,6 +31,7 @@ export class CameraFollow {
   private huntCentre = new Vector3();
   private viewPoint = new Vector3();
   private huntZoom = 1;
+  private tourIndex=0;
 
   /** Drop momentum when manual input, a pause or disabling follow takes over. */
   reset():void {
@@ -64,16 +70,22 @@ export class CameraFollow {
     let radius=0;
     for(const d of ducks)radius=Math.max(radius,Math.hypot(d.x-this.rawCentre.x,d.z-this.rawCentre.z));
     const response=1-Math.exp(-dt/(hunting?.45:FOLLOW_CAMERA.centreSeconds*(wideView?2:1)));
-    if(!this.initialized){this.centre.copy(this.rawCentre);this.radius=radius;this.initialized=true;}
+    if(!this.initialized){
+      this.centre.copy(this.rawCentre);this.radius=radius;this.initialized=true;
+      this.tourIndex=CAMERA_TOUR.reduce((best,p,i)=>Math.hypot(p.x-camera.position.x,p.z-camera.position.z)<Math.hypot(CAMERA_TOUR[best].x-camera.position.x,CAMERA_TOUR[best].z-camera.position.z)?i:best,0);
+    }
     else {this.centre.lerp(this.rawCentre,response);this.radius+=(radius-this.radius)*response;}
     const desiredDistance=wideView?Math.max(5,this.radius+3.2):Math.max(3,this.radius+FOLLOW_CAMERA.clearance);
     const current=camera.position;
+    if(wideView&&Math.hypot(current.x-CAMERA_TOUR[this.tourIndex].x,current.z-CAMERA_TOUR[this.tourIndex].z)<.38)this.tourIndex=(this.tourIndex+1)%CAMERA_TOUR.length;
     const error=Math.abs(Math.hypot(current.x-this.centre.x,current.z-this.centre.z)-desiredDistance);
     const crowded=ducks.some(d=>Math.hypot(current.x-d.x,current.z-d.z)<FOLLOW_CAMERA.clearance);
     if(crowded||error>(wideView?.7:FOLLOW_CAMERA.moveStart))this.moving=true;
     else if(error<(wideView?.25:FOLLOW_CAMERA.moveStop))this.moving=false;
+    if(wideView)this.moving=true;
     // Safety uses the live birds, never the delayed/filtered flock position.
     const safeSegment=(end:Vector3)=>{
+      if(!cameraSegmentClear(current,end))return false;
       const dx=end.x-current.x,dz=end.z-current.z,len=dx*dx+dz*dz;
       return ducks.every(d=>{
         const start=Math.hypot(current.x-d.x,current.z-d.z);
@@ -82,7 +94,8 @@ export class CameraFollow {
       });
     };
     const cost=(p:Vector3)=>{
-      let penalty=Math.abs(Math.hypot(p.x-this.centre.x,p.z-this.centre.z)-desiredDistance);
+      let penalty=Math.abs(Math.hypot(p.x-this.centre.x,p.z-this.centre.z)-desiredDistance)*(wideView?.12:1);
+      if(wideView)penalty+=Math.hypot(p.x-CAMERA_TOUR[this.tourIndex].x,p.z-CAMERA_TOUR[this.tourIndex].z);
       for(const d of ducks)penalty+=Math.max(0,FOLLOW_CAMERA.clearance-Math.hypot(p.x-d.x,p.z-d.z))*8;
       return penalty;
     };

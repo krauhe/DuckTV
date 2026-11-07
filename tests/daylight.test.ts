@@ -44,7 +44,9 @@ test('override retains local date and smoothly changes twilight and shelter timi
   assert.equal(getDaylight(date, noon.sunset).light, 0.5);
   assert.equal(getDaylight(date, noon.sunset + 30).light, 0);
   assert.equal(getDaylight(date, noon.sunset - 16).night, false);
-  assert.equal(getDaylight(date, noon.sunset - 15).night, true);
+  assert.equal(getDaylight(date, noon.sunset).night, false);
+  assert.equal(getDaylight(date, noon.sunset + 19).night, false);
+  assert.equal(getDaylight(date, noon.sunset + 20).night, true);
 });
 
 test('all dates in a leap year produce finite, ordered solar times', () => {

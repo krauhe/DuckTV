@@ -192,10 +192,14 @@ test('spontaneous ground foraging and faster low-neck chases yield to feeding', 
     // Let each activity establish its pose before checking interruption.
     if (activity && chased && ranLow && (activity.state === 'chase' ? ranLow : probed)) {
       interrupted.add(activity.state);
+      const drakeWasBathing=['enter','swim','exit'].includes(sim.ducks[0].state);
       assert.equal(sim.castFood(-1,1),true);
       sim.update(.025);
       assert.ok(sim.ducks.every(d => !['forage','chase'].includes(d.state) && !d.insect));
-      assert.equal(sim.ducks[0].state,'guard');
+      // Food must not teleport a bathing sentinel into a land-only pose.
+      if(drakeWasBathing)assert.ok(['enter','swim','exit','guard'].includes(sim.ducks[0].state));
+      else assert.equal(sim.ducks[0].state,'guard');
+      assert.notEqual(sim.ducks[0].state,'eat');
     }
   }
   assert.ok(chased && probed && ranLow);
