@@ -187,8 +187,8 @@ test('walking keeps the head steady while the body sways and the attached neck f
         neckMin = Math.min(neckMin, neck.rotation.x); neckMax = Math.max(neckMax, neck.rotation.x);
         assert.equal(neck.scale.y,1,'stabilization bends the neck without telescoping');
       }
-      assert.ok(bodyMax - bodyMin > .004, 'body still moves with the feet');
-      assert.ok(neckMax - neckMin > .002, 'neck absorbs the body movement');
+      assert.ok(bodyMax - bodyMin > .00001 && bodyMax - bodyMin < .004, 'body inertia attenuates rapid foot lifts: '+(bodyMax-bodyMin));
+      assert.ok(neckMax - neckMin > .0001, 'neck absorbs the smaller body movement');
       model.animate({ ...pose, time: pose.time + .016, speed: 0, state: 'rest' });
       assert.equal(neck.scale.y, 1, 'stopping clears the walking compensation');
       assert.equal(head.scale.y, 1);

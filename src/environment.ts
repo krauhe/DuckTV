@@ -18,7 +18,7 @@ import { createGistrupChurch, type GistrupChurch } from './gistrup-church';
 import { createGistrupHouses, type GistrupHouses } from './gistrup-houses';
 
 type Weather = { cloud: number; wind: number; rain: number; isDay: boolean; frost?: number; snow?: number };
-type Ripple = { x: number; z: number; start: number; strength: number; line: THREE.LineLoop };
+type Ripple = { x: number; z: number; start: number; strength: number; line: THREE.LineSegments };
 
 const TAU = Math.PI * 2;
 const SHELL_LOBES = 12;
@@ -62,11 +62,11 @@ function radialSurface(profile: Array<[number, number, number]>, segments = 144)
   return geometry;
 }
 
-function makeRippleLine(): THREE.LineLoop {
+function makeRippleLine(): THREE.LineSegments {
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(64 * 3), 3));
+  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(128 * 3), 3));
   const material = new THREE.LineBasicMaterial({ color: 0xe7ffff, transparent: true, opacity: 0, depthWrite: false });
-  const line = new THREE.LineLoop(geometry, material);
+  const line = new THREE.LineSegments(geometry, material);
   line.visible = false;
   line.renderOrder = 3;
   return line;
@@ -1174,14 +1174,22 @@ export function createEnvironment(scene: THREE.Scene): {
       }
       const radius = 0.05 + age * 0.62;
       const linePositions = active.line.geometry.getAttribute('position') as THREE.BufferAttribute;
+      let count=0;
+      const inside=(x:number,z:number)=>Math.hypot(x,z)<shellRadius(Math.atan2(z,x),1.39,.65);
       for (let j = 0; j < 64; j++) {
-        const a = (j / 64) * TAU;
-        linePositions.setXYZ(j, active.x + Math.cos(a) * radius, POND.waterY + 0.003 + 0.008 * active.strength * (1 - age / 2.2), active.z + Math.sin(a) * radius);
+        const a=j/64*TAU,b=(j+1)/64*TAU;
+        const x1=active.x+Math.cos(a)*radius,z1=active.z+Math.sin(a)*radius;
+        const x2=active.x+Math.cos(b)*radius,z2=active.z+Math.sin(b)*radius;
+        if(!inside(x1,z1)||!inside(x2,z2))continue;
+        const y=POND.waterY+.003+.008*active.strength*(1-age/2.2);
+        linePositions.setXYZ(count++,x1,y,z1);linePositions.setXYZ(count++,x2,y,z2);
       }
+      active.line.geometry.setDrawRange(0,count);
+      active.line.geometry.computeBoundingSphere();
       linePositions.needsUpdate = true;
       const material = active.line.material as THREE.LineBasicMaterial;
       material.opacity = Math.max(0, 0.70 * (1 - age / 2.2) * active.strength);
-      active.line.visible = radius + Math.hypot(active.x, active.z) < 1.43;
+      active.line.visible = count > 0;
     }
 
     let activeSplashes = 0;

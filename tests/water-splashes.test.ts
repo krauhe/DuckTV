@@ -56,3 +56,23 @@ test('splash function supports directional wing-flap spray and velocity inherita
   // Droplets should disperse and disappear upon hitting ground
   assert.ok(activeCount < posAttr.count, 'Drops hitting the ground must deactivate rather than slide indefinitely');
 });
+
+test('expanding ripples stay inside the scalloped water and flat hinge edge',()=>{
+ const scene=new THREE.Scene(),env=createEnvironment(scene);
+ env.ripple(POND.x,POND.z-.95,1);
+ let visible=0;
+ for(let t=.1;t<2;t+=.1){
+  env.update(t,.1);
+  scene.traverse(object=>{
+   if(!(object instanceof THREE.LineSegments)||!object.visible||object.renderOrder!==3)return;
+   const points=object.geometry.getAttribute('position');
+   for(let i=0;i<object.geometry.drawRange.count;i++){
+    visible++;const x=points.getX(i),z=points.getZ(i),a=Math.atan2(z,x);
+    const scallop=1.42*(1+.035*.65*Math.cos(12*a));
+    const limit=Math.sin(a)<-.001?Math.min(scallop,1.42*.82/-Math.sin(a)):scallop;
+    assert.ok(Math.hypot(x,z)<limit,'no visible ring segment crosses the shell');
+   }
+  });
+ }
+ assert.ok(visible>0,'clipped arcs remain visible inside the water');
+});

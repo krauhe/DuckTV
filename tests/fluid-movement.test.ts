@@ -40,7 +40,7 @@ test('upright runners transfer weight subtly without a separate oscillating pelv
 
   // Verify non-zero rhythmic lateral shift (waddle)
   const lateralRange = maxX - minX;
-  assert.ok(lateralRange > .003 && lateralRange < .025, `Torso should have a distinct lateral waddle, got range ${lateralRange}`);
+  assert.ok(lateralRange > .0002 && lateralRange < .003, `Inertia should retain a small, attenuated weight shift, got range ${lateralRange}`);
 
   // Verify non-zero pelvic yaw counter-oscillation
   const yawRange = maxYaw - minYaw;
@@ -48,7 +48,7 @@ test('upright runners transfer weight subtly without a separate oscillating pelv
 
   // Verify body roll
   const rollRange = maxRoll - minRoll;
-  assert.ok(rollRange > .006 && rollRange < .06, `Torso should have natural roll during walking, got range ${rollRange}`);
+  assert.ok(rollRange > .0004 && rollRange < .006, `Torso should have natural roll during walking, got range ${rollRange}`);
 });
 
 test('ducks anticipate heading changes with head-leads-body gaze direction', () => {

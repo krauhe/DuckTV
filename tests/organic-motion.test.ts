@@ -26,7 +26,7 @@ test('turning in place shifts weight while the support foot stays anchored',()=>
   maxRoll=Math.max(maxRoll,Math.abs(body.rotation.z));
   const current=head.getWorldPosition(new Vector3());if(i>60)maxHeadStep=Math.max(maxHeadStep,current.distanceTo(previous));previous=current;
  }
- assert.ok(maxRoll>.005,'weight transfer accompanies turning steps without translation');
+ assert.ok(maxRoll>.0002 && maxRoll<.005,'inertia attenuates turning steps without eliminating weight transfer');
  assert.ok(maxHeadStep<.035,'head position remains continuous');
 });
 test('rest-to-walk transition does not jump body scale or pitch',()=>{

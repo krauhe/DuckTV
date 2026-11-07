@@ -575,7 +575,8 @@ export function createDuck(kind: DuckKind): {
   let previousHeading=0,hasHeading=false;
   const individuality=1+BLINK_OFFSETS[kind]*.035;
   const headGaze=new Spring(0,1,230/individuality,30),neckGaze=new Spring(0,1,62/individuality,16);
-  const weightShift=new Spring(0,1,260,29);
+  const weightShift=new Spring(0,1.8,48,19);
+  const bodyRise=new Spring(0,1.8,40,18);
   let restBlend=0,moveBlend=0,breathBlend=0;
   let nextBlink=1.8+BLINK_OFFSETS[kind],blinkStarted=-10,blinkCount=0;
   let paddlePhase = 0;
@@ -713,7 +714,7 @@ export function createDuck(kind: DuckKind): {
     gait.update(dt,rootPosition,group.rotation.y,!airborne && swimBlend<.1 && sleepBlend<.1 && crouch===0,pose.groundHeight);
     const supportTarget=gait.feet.reduce((sum,foot)=>sum-foot.side*Math.sin(Math.PI*foot.progress),0);
     const supportSway=weightShift.step(supportTarget*(1-swimBlend)*(1-sleepBlend)*(1-jumpBlend),dt);
-    const footLift=Math.max(...gait.feet.map(foot=>foot.lift));
+    const footLift=bodyRise.step(Math.max(...gait.feet.map(foot=>foot.lift)),dt);
     const low = (1 - uprightBlend) * (1 - swimBlend) * (1 - peckAmount);
     const display = displayBlend * (1 - swimBlend) * (1 - peckAmount);
     // Raised runner posture: narrow breast, tucked wings and a longer silhouette.
